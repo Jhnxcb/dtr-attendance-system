@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DTR QR Scanner</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="scanner-panel">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Daily Time Record</p>
+            <h1>QR Scanner</h1>
+          </div>
+          <div class="clock" id="clock">--:--:--</div>
+        </div>
+
+        <div class="camera-stage">
+          <video id="video" playsinline muted></video>
+          <canvas id="snapshotCanvas" hidden></canvas>
+          <div class="scan-frame" aria-hidden="true"></div>
+          <div class="camera-status" id="cameraStatus">Starting camera...</div>
+        </div>
+
+        <div class="camera-tools">
+          <label>
+            Camera source
+            <select id="cameraSelect">
+              <option value="">Default camera</option>
+            </select>
+          </label>
+          <button id="refreshCamerasButton" type="button">Refresh Cameras</button>
+        </div>
+
+        <div class="controls">
+          <button id="startButton" type="button">Start Camera</button>
+          <button id="stopButton" type="button">Stop</button>
+          <button id="exportButton" type="button">Export CSV</button>
+          <a class="button-link" href="qr-generator.html">Generate QR</a>
+        </div>
+
+        <form class="settings" id="settingsForm">
+          <label>
+            Google Apps Script upload URL
+            <input id="uploadUrl" name="uploadUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+          </label>
+          <label>
+            Manual staff ID
+            <input id="manualCode" name="manualCode" type="text" placeholder="Use only if QR scanning is unavailable" />
+          </label>
+          <button id="manualButton" type="button">Record Manual Scan</button>
+        </form>
+      </section>
+
+      <aside class="activity-panel">
+        <div class="summary">
+          <span id="scanCount">0</span>
+          <p>records today</p>
+        </div>
+
+        <div class="last-scan" id="lastScan">
+          <p class="muted">Waiting for first scan</p>
+        </div>
+
+        <h2>Recent Records</h2>
+        <div class="records" id="records"></div>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

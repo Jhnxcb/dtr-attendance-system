@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Staff QR Generator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="generator-shell">
+      <section class="scanner-panel">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Daily Time Record</p>
+            <h1>Staff QR Generator</h1>
+          </div>
+          <a class="button-link" href="index.html">Back to Scanner</a>
+        </div>
+
+        <form class="qr-form" id="qrForm">
+          <label>
+            Staff ID
+            <input id="staffId" type="text" placeholder="EMP-001" required />
+          </label>
+          <label>
+            Staff name
+            <input id="staffName" type="text" placeholder="Juan Dela Cruz" />
+          </label>
+          <button type="submit">Create QR</button>
+        </form>
+
+        <div class="qr-preview" id="qrPreview">
+          <p class="muted">Enter staff details to generate a QR code.</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="qr-generator.js"></script>
+  </body>
+</html>
