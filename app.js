@@ -18,6 +18,9 @@ const scanCount = document.getElementById("scanCount");
 let stream;
 let scannerTimer;
 let detector;
+let scannerMode = "";
+const scanCanvas = document.createElement("canvas");
+const scanContext = scanCanvas.getContext("2d", { willReadFrequently: true });
 let lastCode = "";
 let lastScanAt = 0;
 let framesWithoutQr = 0;
@@ -193,16 +196,18 @@ async function recordScan(rawCode) {
 }
 
 async function scanFrame() {
-  if (!detector || !stream || video.readyState < 2) {
+  if (!stream || video.readyState < 2) {
     return;
   }
 
   try {
-    const codes = await detector.detect(video);
-    const qr = codes.find((code) => code.rawValue);
-    if (qr) {
+    const rawValue = scannerMode === "native"
+      ? await scanWithNativeDetector()
+      : scanWithJsQr();
+
+    if (rawValue) {
       framesWithoutQr = 0;
-      await recordScan(qr.rawValue);
+      await recordScan(rawValue);
       return;
     }
 
@@ -211,12 +216,45 @@ async function scanFrame() {
       setStatus("Scanning... no QR found yet. Hold the QR steady inside the square.");
     }
   } catch (error) {
-    setStatus(`QR scan failed: ${error.message || "browser cannot read this camera frame"}. Try Chrome/Edge or another camera.`);
+    setStatus(`QR scan failed: ${error.message || "browser cannot read this camera frame"}. Try another camera or enter staff ID manually.`);
     stopCamera();
   }
 }
 
+async function scanWithNativeDetector() {
+  const codes = await detector.detect(video);
+  const qr = codes.find((code) => code.rawValue);
+  return qr?.rawValue || "";
+}
+
+function scanWithJsQr() {
+  if (!window.jsQR) {
+    return "";
+  }
+
+  const width = video.videoWidth || 640;
+  const height = video.videoHeight || 480;
+  scanCanvas.width = width;
+  scanCanvas.height = height;
+  scanContext.drawImage(video, 0, 0, width, height);
+
+  const imageData = scanContext.getImageData(0, 0, width, height);
+  const result = window.jsQR(imageData.data, width, height, {
+    inversionAttempts: "attemptBoth",
+  });
+
+  return result?.data || "";
+}
+
 async function browserCanScanQr() {
+  if (window.loadQrFallback) {
+    await window.loadQrFallback;
+  }
+
+  if (window.jsQR) {
+    return true;
+  }
+
   if (!("BarcodeDetector" in window)) {
     return false;
   }
@@ -231,7 +269,7 @@ async function browserCanScanQr() {
 
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
-    setStatus("Camera is not available. Open this using Chrome or Edge at http://localhost:8080.");
+    setStatus("Camera is not available. Use a modern browser and open through HTTPS or localhost.");
     return;
   }
 
@@ -243,7 +281,7 @@ async function startCamera() {
       video: {
         width: { ideal: 1280 },
         height: { ideal: 720 },
-        ...(selectedCameraId ? { deviceId: { exact: selectedCameraId } } : {}),
+        ...(selectedCameraId ? { deviceId: { exact: selectedCameraId } } : { facingMode: { ideal: "environment" } }),
       },
       audio: false,
     });
@@ -269,14 +307,22 @@ async function startCamera() {
 
   const canScanQr = await browserCanScanQr();
   if (!canScanQr) {
-    setStatus(`${activeCameraName} is visible, but this browser cannot read QR codes. Use latest Chrome/Edge or enter staff ID manually.`);
+    setStatus(`${activeCameraName} is visible, but the cross-browser QR reader did not load. Check internet or enter staff ID manually.`);
     return;
   }
 
-  detector = new BarcodeDetector({ formats: ["qr_code"] });
+  if (window.jsQR) {
+    scannerMode = "jsqr";
+    detector = undefined;
+  } else {
+    scannerMode = "native";
+    detector = new BarcodeDetector({ formats: ["qr_code"] });
+  }
+
   framesWithoutQr = 0;
-  setStatus(`${activeCameraName} is visible and scanning. Hold the QR steady inside the square.`);
-  scannerTimer = setInterval(scanFrame, 450);
+  const readerName = scannerMode === "jsqr" ? "cross-browser QR reader" : "browser QR reader";
+  setStatus(`${activeCameraName} is visible and scanning with ${readerName}. Hold the QR steady inside the square.`);
+  scannerTimer = setInterval(scanFrame, scannerMode === "jsqr" ? 700 : 450);
 }
 
 function stopCamera(showMessage = true) {

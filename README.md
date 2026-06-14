@@ -45,11 +45,13 @@ Open the scanner through:
 http://localhost:8080
 ```
 
-Use Chrome or Microsoft Edge. When the browser asks for permission, choose Allow camera.
+Use a modern browser such as Chrome, Edge, Firefox, or Safari. When the browser asks for permission, choose Allow camera.
 
 Use the `Camera source` dropdown to choose a different webcam. Press `Refresh Cameras` after plugging in a new USB camera.
 
 The scanner has an `Auto-start scanner` option for kiosk use. Browsers still require camera permission at least once, but after permission is allowed the scanner can open the camera automatically when the page loads.
+
+The scanner loads a cross-browser QR reader for iPhone/Safari, Firefox, Chrome, Edge, and other browsers that do not support the built-in browser QR reader. Internet is needed when the page first loads that fallback.
 
 If the camera still does not start:
 

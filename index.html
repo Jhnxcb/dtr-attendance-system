@@ -73,6 +73,29 @@
       </aside>
     </main>
 
+    <script>
+      window.loadQrFallback = new Promise((resolve) => {
+        const sources = [
+          "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js",
+          "https://unpkg.com/jsqr@1.4.0/dist/jsQR.js",
+        ];
+
+        function loadSource(index) {
+          if (window.jsQR || index >= sources.length) {
+            resolve(Boolean(window.jsQR));
+            return;
+          }
+
+          const script = document.createElement("script");
+          script.src = sources[index];
+          script.onload = () => resolve(true);
+          script.onerror = () => loadSource(index + 1);
+          document.head.appendChild(script);
+        }
+
+        loadSource(0);
+      });
+    </script>
     <script src="app.js"></script>
   </body>
 </html>
