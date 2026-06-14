@@ -7,6 +7,7 @@ const stopButton = document.getElementById("stopButton");
 const exportButton = document.getElementById("exportButton");
 const manualButton = document.getElementById("manualButton");
 const refreshCamerasButton = document.getElementById("refreshCamerasButton");
+const autoStartCamera = document.getElementById("autoStartCamera");
 const manualCode = document.getElementById("manualCode");
 const uploadUrl = document.getElementById("uploadUrl");
 const cameraSelect = document.getElementById("cameraSelect");
@@ -19,14 +20,17 @@ let scannerTimer;
 let detector;
 let lastCode = "";
 let lastScanAt = 0;
+let framesWithoutQr = 0;
 
 const STORAGE_KEY = "dtr-records";
 const UPLOAD_URL_KEY = "dtr-upload-url";
 const CAMERA_ID_KEY = "dtr-camera-id";
+const AUTO_START_KEY = "dtr-auto-start-camera";
 const DUPLICATE_WINDOW_MS = 60_000;
 
 uploadUrl.value = localStorage.getItem(UPLOAD_URL_KEY) || "";
 cameraSelect.value = localStorage.getItem(CAMERA_ID_KEY) || "";
+autoStartCamera.checked = localStorage.getItem(AUTO_START_KEY) !== "false";
 
 function nowParts() {
   const date = new Date();
@@ -185,7 +189,7 @@ async function recordScan(rawCode) {
 
   saveRecords(records);
   render();
-  setStatus(`${record.staffId} ${record.type} saved. ${record.uploadStatus}.`);
+  setStatus(`${record.staffId} ${record.type} saved. ${record.uploadStatus}. Ready for next QR.`);
 }
 
 async function scanFrame() {
@@ -197,12 +201,32 @@ async function scanFrame() {
     const codes = await detector.detect(video);
     const qr = codes.find((code) => code.rawValue);
     if (qr) {
+      framesWithoutQr = 0;
       await recordScan(qr.rawValue);
+      return;
     }
-  } catch {
-    setStatus("QR scanner is not available in this browser. Use Chrome or manual staff ID.");
+
+    framesWithoutQr += 1;
+    if (framesWithoutQr % 8 === 0) {
+      setStatus("Scanning... no QR found yet. Hold the QR steady inside the square.");
+    }
+  } catch (error) {
+    setStatus(`QR scan failed: ${error.message || "browser cannot read this camera frame"}. Try Chrome/Edge or another camera.`);
     stopCamera();
   }
+}
+
+async function browserCanScanQr() {
+  if (!("BarcodeDetector" in window)) {
+    return false;
+  }
+
+  if (!BarcodeDetector.getSupportedFormats) {
+    return true;
+  }
+
+  const formats = await BarcodeDetector.getSupportedFormats();
+  return formats.includes("qr_code");
 }
 
 async function startCamera() {
@@ -243,14 +267,16 @@ async function startCamera() {
     localStorage.setItem(CAMERA_ID_KEY, activeCameraId);
   }
 
-  if (!("BarcodeDetector" in window)) {
-    setStatus(`${activeCameraName} is visible, but this browser cannot auto-read QR codes. Use Chrome/Edge or enter staff ID manually.`);
+  const canScanQr = await browserCanScanQr();
+  if (!canScanQr) {
+    setStatus(`${activeCameraName} is visible, but this browser cannot read QR codes. Use latest Chrome/Edge or enter staff ID manually.`);
     return;
   }
 
   detector = new BarcodeDetector({ formats: ["qr_code"] });
-  setStatus(`${activeCameraName} is visible. Place the QR code inside the square.`);
-  scannerTimer = setInterval(scanFrame, 700);
+  framesWithoutQr = 0;
+  setStatus(`${activeCameraName} is visible and scanning. Hold the QR steady inside the square.`);
+  scannerTimer = setInterval(scanFrame, 450);
 }
 
 function stopCamera(showMessage = true) {
@@ -331,6 +357,9 @@ startButton.addEventListener("click", () => startCamera().catch((error) => setSt
 stopButton.addEventListener("click", stopCamera);
 exportButton.addEventListener("click", exportCsv);
 refreshCamerasButton.addEventListener("click", () => loadCameraSources().catch((error) => setStatus(error.message)));
+autoStartCamera.addEventListener("change", () => {
+  localStorage.setItem(AUTO_START_KEY, autoStartCamera.checked ? "true" : "false");
+});
 cameraSelect.addEventListener("change", () => {
   localStorage.setItem(CAMERA_ID_KEY, cameraSelect.value);
   if (stream) {
@@ -351,3 +380,8 @@ setInterval(updateClock, 1000);
 updateClock();
 loadCameraSources().catch(() => {});
 render();
+
+if (autoStartCamera.checked) {
+  setStatus("Opening camera for automatic QR scanning...");
+  startCamera().catch((error) => setStatus(error.message));
+}

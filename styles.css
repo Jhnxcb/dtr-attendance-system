@@ -148,9 +148,23 @@ video {
 
 .camera-tools {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
   gap: 12px;
   align-items: end;
+}
+
+.check-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.check-control input {
+  width: 18px;
+  min-height: 18px;
 }
 
 button {

@@ -49,6 +49,8 @@ Use Chrome or Microsoft Edge. When the browser asks for permission, choose Allow
 
 Use the `Camera source` dropdown to choose a different webcam. Press `Refresh Cameras` after plugging in a new USB camera.
 
+The scanner has an `Auto-start scanner` option for kiosk use. Browsers still require camera permission at least once, but after permission is allowed the scanner can open the camera automatically when the page loads.
+
 If the camera still does not start:
 
 - close Zoom, Teams, CCTV viewers, or other apps using the webcam
