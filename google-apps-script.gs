@@ -1,36 +1,31 @@
-const DRIVE_FOLDER_NAME = "DTR Evidence Photos";
 const SHEET_NAME = "DTR Logs";
 
 function doPost(e) {
   const payload = JSON.parse(e.postData.contents);
-  const folder = getOrCreateFolder_(DRIVE_FOLDER_NAME);
   const sheet = getOrCreateSheet_(SHEET_NAME);
 
-  const imageBytes = Utilities.base64Decode(payload.photoDataUrl.split(",")[1]);
-  const safeStaffId = String(payload.staffId || "unknown").replace(/[^\w-]/g, "_");
-  const fileName = `${safeStaffId}_${payload.type}_${payload.iso}.jpg`.replace(/[:.]/g, "-");
-  const blob = Utilities.newBlob(imageBytes, "image/jpeg", fileName);
-  const file = folder.createFile(blob);
-
   sheet.appendRow([
-    payload.iso,
-    payload.date,
-    payload.time,
-    payload.staffId,
-    payload.staffName || "",
-    payload.type,
-    file.getUrl(),
-    payload.rawCode || "",
+    payload.iso || payload.timestamp || "",
+    payload.employeeName || payload.staffName || "",
+    payload.employeeId || payload.staffId || "",
+    payload.email || "",
+    payload.attendanceType || payload.type || "",
+    payload.locationAddress || "",
+    payload.latitude || "",
+    payload.longitude || "",
+    payload.registeredPhotoUrl || "",
+    payload.evidencePhotoUrl || "",
+    payload.verificationPhotoUrl || "",
+    payload.attendanceDate || payload.date || "",
+    payload.attendanceTime || payload.time || "",
+    payload.branchSite || "",
+    payload.deviceUsed || "",
+    payload.verificationId || "",
   ]);
 
   return ContentService
-    .createTextOutput(JSON.stringify({ ok: true, fileUrl: file.getUrl() }))
+    .createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-function getOrCreateFolder_(name) {
-  const folders = DriveApp.getFoldersByName(name);
-  return folders.hasNext() ? folders.next() : DriveApp.createFolder(name);
 }
 
 function getOrCreateSheet_(name) {
@@ -41,7 +36,24 @@ function getOrCreateSheet_(name) {
 
   const sheet = spreadsheet.getSheets()[0];
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["ISO Time", "Date", "Time", "Staff ID", "Name", "Type", "Photo URL", "Raw QR"]);
+    sheet.appendRow([
+      "Timestamp",
+      "Employee Name",
+      "Employee ID Code",
+      "Email Address",
+      "Attendance Type",
+      "GPS Location",
+      "Latitude",
+      "Longitude",
+      "Registered Photo URL",
+      "Attendance Evidence Photo URL",
+      "Verification Photo URL",
+      "Attendance Date",
+      "Attendance Time",
+      "Branch / Site Location",
+      "Device Information",
+      "Verification ID",
+    ]);
   }
   return sheet;
 }

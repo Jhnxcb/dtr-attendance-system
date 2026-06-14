@@ -1,89 +1,87 @@
-# DTR QR Scanner
+# DTR Attendance System
 
-This is a simple computer-based DTR starter app.
+Cloud-ready Daily Time Record system with QR/ID scanning, camera evidence, GPS validation, Supabase storage/database, Google Sheets sync, and an admin dashboard.
 
-## What it does
+## Pages
 
-- Uses the computer webcam to scan staff QR codes.
-- Takes a photo after every valid scan.
-- Records Time In / Time Out automatically.
-- Saves recent records in the browser.
-- Can upload the evidence photo to Google Drive using Google Apps Script.
-- Can export records to CSV.
+- Scanner: `http://localhost:8080`
+- QR Generator: `http://localhost:8080/qr-generator.html`
+- Dashboard: `http://localhost:8080/dashboard.html`
 
-## QR code format
+## Attendance Rules
 
-The QR code can contain just the staff ID:
+Attendance is rejected unless all required evidence is available:
+
+- camera is running
+- GPS location is granted
+- employee ID exists and is active in Supabase
+- original evidence photo is captured
+- verification photo with overlay is generated
+- original and verification images upload to Supabase Storage
+
+The verification image overlay includes employee name, employee ID, TIME IN/TIME OUT, full date, exact time, address, latitude, longitude, branch/site, device used, and verification ID.
+
+## Supabase Setup
+
+1. Create a Supabase project.
+2. Run `supabase-schema.sql` in the Supabase SQL editor.
+3. Create a public storage bucket named `attendance-evidence`, or use your own bucket name and enter it in the scanner.
+4. Add employees to the `employees` table.
+5. Enter these settings on the scanner page:
+   - Supabase URL
+   - Supabase anon key
+   - Storage bucket
+   - Branch / Site Location
+   - Email Edge Function URL, optional but recommended
+
+For production, tighten RLS policies by role and move attendance writes, email notifications, and Google Sheets sync into Supabase Edge Functions. The browser starter uses the anon key and RLS policies.
+
+## Email Notifications
+
+Use `supabase-edge-function-send-attendance-email.ts` as the starter Supabase Edge Function for Resend email notifications.
+
+Set these Edge Function secrets:
 
 ```text
-EMP-001
+RESEND_API_KEY
+FROM_EMAIL
 ```
 
-Or JSON with name:
+Deploy the function, then paste its URL into `Email Edge Function URL` on the scanner page.
+
+## Employee QR Format
+
+QR codes can contain only an employee ID:
+
+```text
+EMP-00123
+```
+
+Or JSON:
 
 ```json
-{"staffId":"EMP-001","name":"Juan Dela Cruz"}
+{"employeeId":"EMP-00123","name":"John Doe","email":"john@example.com"}
 ```
 
-## Generating staff QR codes
+The employee must exist in Supabase or the attendance will be rejected.
 
-Open:
+## Google Sheets Setup
 
-```text
-http://localhost:8080/qr-generator.html
-```
+1. Create a Google Apps Script project.
+2. Paste `google-apps-script.gs`.
+3. Deploy as a Web App.
+4. Paste the Web App URL into the scanner page.
 
-Type the staff ID and staff name, then print or download the QR code.
+Google Sheets columns include timestamp, employee name, employee ID, email, attendance type, GPS location, latitude, longitude, registered photo URL, evidence photo URL, verification photo URL, date, time, branch/site, device information, and verification ID.
 
-This generator uses an online QR image service, so the computer needs internet while generating QR codes. After the QR codes are printed, daily scanning can continue from the local scanner page.
+## Browser Support
 
-## Camera notes
+Use a modern browser such as Chrome, Edge, Firefox, or Safari. Camera and GPS permissions are required. The scanner loads a cross-browser QR reader for common browsers; internet is needed when that library first loads.
 
-Open the scanner through:
-
-```text
-http://localhost:8080
-```
-
-Use a modern browser such as Chrome, Edge, Firefox, or Safari. When the browser asks for permission, choose Allow camera.
-
-Use the `Camera source` dropdown to choose a different webcam. Press `Refresh Cameras` after plugging in a new USB camera.
-
-The scanner has an `Auto-start scanner` option for kiosk use. Browsers still require camera permission at least once, but after permission is allowed the scanner can open the camera automatically when the page loads.
-
-The scanner loads a cross-browser QR reader for iPhone/Safari, Firefox, Chrome, Edge, and other browsers that do not support the built-in browser QR reader. Internet is needed when the page first loads that fallback.
-
-If the camera still does not start:
-
-- close Zoom, Teams, CCTV viewers, or other apps using the webcam
-- check that Windows camera privacy allows browser access
-- refresh the scanner page and press Start Camera again
-
-## Google Drive upload setup
-
-1. Go to Google Apps Script.
-2. Create a new project.
-3. Paste the code from `google-apps-script.gs`.
-4. Deploy it as a Web App.
-5. Set access to the Google account/users you want to allow.
-6. Copy the Web App URL.
-7. Paste that URL into the app field named `Google Apps Script upload URL`.
-
-The script creates:
-
-- a Google Drive folder named `DTR Evidence Photos`
-- a Google Sheet named `DTR Logs`
-
-The app sends each photo to Drive and keeps only the attendance details in the browser. The Google Sheet contains the photo link.
-
-## Running locally
-
-Camera access works best through `localhost`, not by opening the file directly.
-
-If Python is installed:
+## Local Run
 
 ```powershell
-python -m http.server 8080
+node server.js
 ```
 
 Then open:
@@ -91,6 +89,3 @@ Then open:
 ```text
 http://localhost:8080
 ```
-
-Use Chrome or Edge for QR scanning because the app uses the browser's built-in QR detector.
-"# DTR" 

@@ -10,9 +10,12 @@
     <main class="app-shell">
       <section class="scanner-panel">
         <div class="topbar">
-          <div>
+          <div class="brand-title">
+            <img class="brand-logo" src="static-logo.png" alt="Organization logo" />
+            <div>
             <p class="eyebrow">Daily Time Record</p>
             <h1>QR Scanner</h1>
+            </div>
           </div>
           <div class="clock" id="clock">--:--:--</div>
         </div>
@@ -43,12 +46,33 @@
           <button id="stopButton" type="button">Stop</button>
           <button id="exportButton" type="button">Export CSV</button>
           <a class="button-link" href="qr-generator.html">Generate QR</a>
+          <a class="button-link" href="dashboard.html">Dashboard</a>
         </div>
 
         <form class="settings" id="settingsForm">
           <label>
             Google Apps Script upload URL
             <input id="uploadUrl" name="uploadUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+          </label>
+          <label>
+            Supabase URL
+            <input id="supabaseUrl" name="supabaseUrl" type="url" placeholder="https://project.supabase.co" />
+          </label>
+          <label>
+            Supabase anon key
+            <input id="supabaseKey" name="supabaseKey" type="password" placeholder="Paste anon public key" />
+          </label>
+          <label>
+            Storage bucket
+            <input id="supabaseBucket" name="supabaseBucket" type="text" placeholder="attendance-evidence" />
+          </label>
+          <label>
+            Branch / Site Location
+            <input id="branchSite" name="branchSite" type="text" placeholder="Kantibas, Cebu" />
+          </label>
+          <label>
+            Email Edge Function URL
+            <input id="emailFunctionUrl" name="emailFunctionUrl" type="url" placeholder="https://project.functions.supabase.co/send-attendance-email" />
           </label>
           <label>
             Manual staff ID
@@ -72,6 +96,11 @@
         <div class="records" id="records"></div>
       </aside>
     </main>
+
+    <dialog class="photo-dialog" id="photoDialog">
+      <button class="dialog-close" id="closePhotoDialog" type="button">Close</button>
+      <img id="photoDialogImage" alt="Attendance evidence preview" />
+    </dialog>
 
     <script>
       window.loadQrFallback = new Promise((resolve) => {

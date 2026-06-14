@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DTR Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <section class="scanner-panel">
+        <div class="topbar">
+          <div class="brand-title">
+            <img class="brand-logo" src="static-logo.png" alt="Organization logo" />
+            <div>
+            <p class="eyebrow">Daily Time Record</p>
+            <h1>Admin Dashboard</h1>
+            </div>
+          </div>
+          <a class="button-link" href="index.html">Scanner</a>
+        </div>
+
+        <div class="dashboard-filters">
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="Name, ID, branch, verification ID" />
+          </label>
+          <label>
+            Attendance Type
+            <select id="typeFilter">
+              <option value="">All</option>
+              <option value="TIME IN">TIME IN</option>
+              <option value="TIME OUT">TIME OUT</option>
+            </select>
+          </label>
+          <button id="refreshDashboard" type="button">Refresh</button>
+          <button id="dashboardCsv" type="button">Export CSV</button>
+        </div>
+
+        <div class="dashboard-metrics">
+          <div>
+            <strong id="todayCount">0</strong>
+            <span>today</span>
+          </div>
+          <div>
+            <strong id="insideCount">0</strong>
+            <span>currently in</span>
+          </div>
+          <div>
+            <strong id="siteCount">0</strong>
+            <span>branches</span>
+          </div>
+        </div>
+
+        <div class="dashboard-grid" id="dashboardGrid"></div>
+      </section>
+    </main>
+
+    <dialog class="photo-dialog" id="photoDialog">
+      <button class="dialog-close" id="closePhotoDialog" type="button">Close</button>
+      <img id="photoDialogImage" alt="Attendance evidence preview" />
+    </dialog>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>
