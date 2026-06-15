@@ -74,10 +74,10 @@ export async function POST(request: Request) {
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || "attendance-evidence";
     const folder = `${employee.employee_id}/${format(timestamp, "yyyyMMdd")}`;
     const originalPath = `${folder}/${verificationId}-original.jpg`;
-    const verifiedPath = `${folder}/${verificationId}-verified.jpg`;
+    const verifiedPath = `${folder}/${verificationId}-verified.svg`;
 
-    await uploadObject(bucket, originalPath, originalPhoto);
-    await uploadObject(bucket, verifiedPath, verificationPhoto);
+    await uploadObject(bucket, originalPath, originalPhoto, "image/jpeg");
+    await uploadObject(bucket, verifiedPath, verificationPhoto, "image/svg+xml");
 
     const { data: originalPublic } = supabase.storage.from(bucket).getPublicUrl(originalPath);
     const { data: verifiedPublic } = supabase.storage.from(bucket).getPublicUrl(verifiedPath);
@@ -147,10 +147,10 @@ async function reverseGeocode(latitude: number, longitude: number) {
   }
 }
 
-async function uploadObject(bucket: string, path: string, body: Buffer) {
+async function uploadObject(bucket: string, path: string, body: Buffer, contentType: string) {
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase.storage.from(bucket).upload(path, body, {
-    contentType: "image/jpeg",
+    contentType,
     upsert: false
   });
   if (error) throw error;

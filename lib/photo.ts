@@ -1,4 +1,3 @@
-import { createCanvas, loadImage } from "@napi-rs/canvas";
 import type { AttendanceType } from "@/lib/types";
 
 export interface OverlayInput {
@@ -16,14 +15,6 @@ export interface OverlayInput {
 }
 
 export async function createVerificationImage(input: OverlayInput) {
-  const image = await loadImage(input.originalPhoto);
-  const canvas = createCanvas(image.width, image.height);
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(image, 0, 0);
-
-  const padding = Math.max(24, Math.round(image.width * 0.025));
-  const boxWidth = Math.min(image.width - padding * 2, Math.round(image.width * 0.72));
-  const lineHeight = Math.max(28, Math.round(image.width * 0.026));
   const lines = [
     input.employeeName,
     `Employee ID: ${input.employeeId}`,
@@ -37,26 +28,37 @@ export async function createVerificationImage(input: OverlayInput) {
     `Verification ID: ${input.verificationId}`
   ];
 
-  const boxHeight = padding * 2 + lines.length * lineHeight;
-  const x = padding;
-  const y = image.height - boxHeight - padding;
-  ctx.fillStyle = "rgba(17,17,17,0.78)";
-  ctx.fillRect(x, y, boxWidth, boxHeight);
-  ctx.strokeStyle = "#FCEFA2";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(x, y, boxWidth, boxHeight);
+  const imageBase64 = input.originalPhoto.toString("base64");
+  const lineMarkup = lines
+    .map((line, index) => {
+      const fill = index === 2 ? "#FFBF60" : "#FFFFFF";
+      const weight = index === 2 ? 800 : 700;
+      const y = 430 + index * 25;
+      return `<text x="58" y="${y}" fill="${fill}" font-size="22" font-weight="${weight}">${escapeXml(line)}</text>`;
+    })
+    .join("");
 
-  lines.forEach((line, index) => {
-    ctx.fillStyle = index === 2 ? "#FFBF60" : "#FFFFFF";
-    ctx.font = `${index === 2 ? "800" : "700"} ${Math.max(22, Math.round(image.width * 0.02))}px Arial`;
-    ctx.fillText(line, x + padding, y + padding + lineHeight * (index + 0.8), boxWidth - padding * 2);
-  });
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <image href="data:image/jpeg;base64,${imageBase64}" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="36" y="386" width="850" height="298" rx="10" fill="rgba(17,17,17,0.78)" stroke="#FCEFA2" stroke-width="4"/>
+  ${lineMarkup}
+</svg>`;
 
-  return canvas.toBuffer("image/jpeg", 0.9);
+  return Buffer.from(svg, "utf8");
 }
 
 export function dataUrlToBuffer(dataUrl: string) {
   const base64 = dataUrl.split(",")[1];
   if (!base64) throw new Error("Invalid photo data.");
   return Buffer.from(base64, "base64");
+}
+
+function escapeXml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
