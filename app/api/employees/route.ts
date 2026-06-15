@@ -74,3 +74,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Employee save failed." }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const employeeId = String(searchParams.get("employee_id") || "").trim();
+
+    if (!employeeId) {
+      return NextResponse.json({ error: "Employee ID is required." }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("employees")
+      .update({ status: "inactive" })
+      .eq("employee_id", employeeId)
+      .select("employee_id,full_name,status")
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Employee remove failed." }, { status: 500 });
+  }
+}

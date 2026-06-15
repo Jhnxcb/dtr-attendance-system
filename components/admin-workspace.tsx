@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Camera, Download, FileSpreadsheet, QrCode, Settings, Users } from "lucide-react";
+import { Activity, Camera, Download, FileSpreadsheet, QrCode, Settings, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -89,6 +89,26 @@ export function AdminWorkspace() {
     setStatus(payload.sheetsWarning ? `${payload.full_name} saved. Google Sheets warning: ${payload.sheetsWarning}` : `${payload.full_name} saved.`);
     await loadEmployees();
     setQrEmployeeId(payload.employee_id);
+  }
+
+  async function removeEmployee(employeeId: string, fullName: string) {
+    const confirmed = window.confirm(`Remove ${fullName} from active staff? Their attendance history will stay in reports.`);
+    if (!confirmed) return;
+
+    setStatus(`Removing ${fullName}...`);
+    const response = await fetch(`/api/employees?employee_id=${encodeURIComponent(employeeId)}`, {
+      method: "DELETE"
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatus(payload.error || "Staff remove failed.");
+      return;
+    }
+    setStatus(`${fullName} removed from active staff.`);
+    await loadEmployees();
+    if (qrEmployeeId === employeeId) {
+      setQrEmployeeId("");
+    }
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -192,7 +212,11 @@ export function AdminWorkspace() {
               </form>
               <p className="mt-3 text-sm font-bold text-slate-500">{status}</p>
             </Card>
-            <StaffGrid employees={employees} onGenerate={(id) => { setQrEmployeeId(id); setActiveTab("qr"); }} />
+            <StaffGrid
+              employees={employees}
+              onGenerate={(id) => { setQrEmployeeId(id); setActiveTab("qr"); }}
+              onRemove={removeEmployee}
+            />
           </section>
         ) : null}
 
@@ -287,7 +311,15 @@ function Metric({ title, value, icon: Icon }: { title: string; value: number; ic
   );
 }
 
-function StaffGrid({ employees, onGenerate }: { employees: EmployeeRow[]; onGenerate: (employeeId: string) => void }) {
+function StaffGrid({
+  employees,
+  onGenerate,
+  onRemove
+}: {
+  employees: EmployeeRow[];
+  onGenerate: (employeeId: string) => void;
+  onRemove: (employeeId: string, fullName: string) => void;
+}) {
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {employees.map((employee) => (
@@ -301,7 +333,18 @@ function StaffGrid({ employees, onGenerate }: { employees: EmployeeRow[]; onGene
           <span className="text-sm text-slate-500">{employee.position} {employee.department ? `- ${employee.department}` : ""}</span>
           <div className="flex items-center justify-between gap-2">
             <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black uppercase">{employee.status}</span>
-            <Button type="button" variant="outline" onClick={() => onGenerate(employee.employee_id)}>QR</Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onGenerate(employee.employee_id)}>QR</Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => onRemove(employee.employee_id, employee.full_name)}
+              >
+                <Trash2 size={16} />
+                Remove
+              </Button>
+            </div>
           </div>
         </Card>
       ))}
