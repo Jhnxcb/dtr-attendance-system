@@ -49,7 +49,7 @@ export async function createVerificationImage(input: OverlayInput) {
   return sharp(input.originalPhoto)
     .resize(1280, 720, { fit: "cover" })
     .composite([{ input: Buffer.from(overlaySvg, "utf8") }])
-    .jpeg({ quality: 90 })
+    .png({ compressionLevel: 8 })
     .toBuffer();
 }
 
