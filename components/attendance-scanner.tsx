@@ -368,7 +368,11 @@ export function AttendanceScanner() {
             <CardTitle>Validation</CardTitle>
             <MapPin className="text-brand-hill" />
           </CardHeader>
-          <p className="text-sm text-slate-600">Camera, GPS, employee validation, photo upload, and verification overlay are required before saving.</p>
+          <p className="text-sm text-slate-600">
+            {lastResult
+              ? "Photo evidence captured and taken successfully."
+              : "Photo evidence will be captured and taken during attendance scan."}
+          </p>
         </Card>
       </div>
     </div>
