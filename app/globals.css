@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,6 +22,7 @@ body {
   margin: 0;
   background: #f6f8ef;
   color: var(--text-color);
+  font-family: "Fredoka", Arial, Helvetica, sans-serif;
 }
 
 button,

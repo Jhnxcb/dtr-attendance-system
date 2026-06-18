@@ -1,4 +1,5 @@
 import type { AttendanceType } from "@/lib/types";
+import sharp from "sharp";
 
 export interface OverlayInput {
   originalPhoto: Buffer;
@@ -30,7 +31,6 @@ export async function createVerificationImage(input: OverlayInput) {
     `Verification ID: ${input.verificationId}`
   ];
 
-  const imageBase64 = input.originalPhoto.toString("base64");
   const lineMarkup = lines
     .map((line, index) => {
       const fill = index === 5 ? "#FFBF60" : "#FFFFFF";
@@ -40,14 +40,17 @@ export async function createVerificationImage(input: OverlayInput) {
     })
     .join("");
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+  const overlaySvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <image href="data:image/jpeg;base64,${imageBase64}" x="0" y="0" width="1280" height="720" preserveAspectRatio="xMidYMid slice"/>
   <rect x="36" y="386" width="850" height="298" rx="10" fill="rgba(17,17,17,0.78)" stroke="#FCEFA2" stroke-width="4"/>
   ${lineMarkup}
 </svg>`;
 
-  return Buffer.from(svg, "utf8");
+  return sharp(input.originalPhoto)
+    .resize(1280, 720, { fit: "cover" })
+    .composite([{ input: Buffer.from(overlaySvg, "utf8") }])
+    .jpeg({ quality: 90 })
+    .toBuffer();
 }
 
 export function dataUrlToBuffer(dataUrl: string) {

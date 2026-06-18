@@ -98,7 +98,7 @@ export function queueLocalAttendanceScan(input: AttendanceSubmitPayload, errorMe
 
 export async function syncPendingAttendanceScans() {
   const pendingScans = getPendingAttendanceScans();
-  if (!pendingScans.length || !navigator.onLine) {
+  if (!pendingScans.length) {
     return { synced: 0, remaining: pendingScans.length };
   }
 

@@ -89,10 +89,10 @@ export async function POST(request: Request) {
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || "attendance-evidence";
     const folder = `${employee.employee_id}/${format(timestamp, "yyyyMMdd")}`;
     const originalPath = `${folder}/${verificationId}-original.jpg`;
-    const verifiedPath = `${folder}/${verificationId}-verified.svg`;
+    const verifiedPath = `${folder}/${verificationId}-verified.jpg`;
 
     await uploadObject(bucket, originalPath, originalPhoto, "image/jpeg");
-    await uploadObject(bucket, verifiedPath, verificationPhoto, "image/svg+xml");
+    await uploadObject(bucket, verifiedPath, verificationPhoto, "image/jpeg");
 
     const { data: originalPublic } = supabase.storage.from(bucket).getPublicUrl(originalPath);
     const { data: verifiedPublic } = supabase.storage.from(bucket).getPublicUrl(verifiedPath);

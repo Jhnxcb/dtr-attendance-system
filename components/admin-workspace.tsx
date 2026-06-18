@@ -52,6 +52,27 @@ export function AdminWorkspace() {
   }, []);
 
   useEffect(() => {
+    function retryLocalBackups() {
+      if (!getPendingAttendanceScans().length) return;
+      syncPendingAttendanceScans().then((result) => {
+        if (result.synced || result.remaining !== pendingLocalCount) {
+          loadLocalRecords();
+          loadRecords();
+          setStatus(`${result.synced} local scan${result.synced === 1 ? "" : "s"} backed up. ${result.remaining} still local.`);
+        }
+      });
+    }
+
+    retryLocalBackups();
+    const timer = window.setInterval(retryLocalBackups, 30000);
+    window.addEventListener("online", retryLocalBackups);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", retryLocalBackups);
+    };
+  }, [pendingLocalCount]);
+
+  useEffect(() => {
     loadRecords();
     const timer = window.setInterval(loadRecords, 15000);
     return () => window.clearInterval(timer);

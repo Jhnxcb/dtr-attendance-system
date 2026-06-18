@@ -6,7 +6,7 @@ import { Camera, MapPin, QrCode, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
-import { queueLocalAttendanceScan, saveOnlineRecordLocally, syncPendingAttendanceScans } from "@/lib/local-attendance";
+import { getPendingAttendanceScans, queueLocalAttendanceScan, saveOnlineRecordLocally, syncPendingAttendanceScans } from "@/lib/local-attendance";
 import { formatDeviceInfo } from "@/lib/utils";
 import type { AttendanceType, Employee } from "@/lib/types";
 
@@ -59,6 +59,7 @@ export function AttendanceScanner() {
 
   useEffect(() => {
     function syncLocalBackups() {
+      if (!getPendingAttendanceScans().length) return;
       syncPendingAttendanceScans().then((result) => {
         if (result.synced) {
           setStatus(`${result.synced} local scan${result.synced === 1 ? "" : "s"} backed up online.`);
@@ -67,8 +68,12 @@ export function AttendanceScanner() {
     }
 
     syncLocalBackups();
+    const timer = window.setInterval(syncLocalBackups, 30000);
     window.addEventListener("online", syncLocalBackups);
-    return () => window.removeEventListener("online", syncLocalBackups);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", syncLocalBackups);
+    };
   }, []);
 
   function say(message: string) {
