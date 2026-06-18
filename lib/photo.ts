@@ -1,5 +1,4 @@
 import type { AttendanceType } from "@/lib/types";
-import sharp from "sharp";
 
 export interface OverlayInput {
   originalPhoto: Buffer;
@@ -18,6 +17,7 @@ export interface OverlayInput {
 }
 
 export async function createVerificationImage(input: OverlayInput) {
+  const sharp = (await import("sharp")).default;
   const lines = [
     input.employeeName,
     `${input.role || "Staff"}${input.department ? ` | ${input.department}` : ""}`,

@@ -231,7 +231,7 @@ export function AttendanceScanner() {
         body: JSON.stringify(attendancePayload)
       });
 
-      const payload = await response.json();
+      const payload = await readApiPayload(response);
       if (!response.ok) {
         throw new Error(payload.error || "Attendance was rejected.");
       }
@@ -395,4 +395,16 @@ export function AttendanceScanner() {
       </div>
     </div>
   );
+}
+
+async function readApiPayload(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  const title = text.match(/<title>(.*?)<\/title>/i)?.[1]?.trim();
+  const fallback = response.ok ? "Attendance response was not JSON." : `Attendance server returned ${response.status}.`;
+  return { error: title || fallback };
 }
