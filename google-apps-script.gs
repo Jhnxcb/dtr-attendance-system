@@ -87,3 +87,9 @@ function sendAttendanceEmail_(payload) {
     .createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+function testEmailSetup() {
+  GmailApp.sendEmail(Session.getActiveUser().getEmail(), "DTR Gmail setup test", "DTR Gmail sending is authorized.", {
+    name: "DTR Attendance"
+  });
+}
