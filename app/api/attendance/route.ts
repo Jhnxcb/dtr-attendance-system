@@ -74,6 +74,8 @@ export async function POST(request: Request) {
       originalPhoto,
       employeeName: employee.full_name,
       employeeId: employee.employee_id,
+      role: employee.position || "Staff",
+      department: employee.department || null,
       attendanceType,
       date,
       time,
@@ -125,6 +127,8 @@ export async function POST(request: Request) {
     const record = saved as AttendanceRecord;
     const sheetRecord = {
       ...record,
+      role: employee.position || "Staff",
+      department: employee.department || "",
       ...getWorkedHours(latest, record)
     };
     const [sheetsResult, emailResult] = await Promise.allSettled([
@@ -221,12 +225,14 @@ async function uploadObject(bucket: string, path: string, body: Buffer, contentT
   if (error) throw error;
 }
 
-function normalizeEmployee(employee: any): Pick<Employee, "employee_id" | "full_name" | "email" | "profile_photo_url"> & { branch_name: string | null } {
+function normalizeEmployee(employee: any): Pick<Employee, "employee_id" | "full_name" | "email" | "profile_photo_url" | "position" | "department"> & { branch_name: string | null } {
   return {
     employee_id: employee.employee_id,
     full_name: employee.full_name,
     email: employee.email,
     profile_photo_url: employee.profile_photo_url,
+    position: employee.position,
+    department: employee.department,
     branch_name: employee.branches?.name || employee.branch || null
   };
 }

@@ -5,6 +5,7 @@ import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+import { departments, workforceRoles } from "@/lib/organization-options";
 
 interface EmployeeRow {
   employee_id: string;
@@ -64,9 +65,9 @@ export function EmployeeManager() {
           <Label>Full Name<Input name="full_name" required placeholder="John Doe" /></Label>
           <Label>Email<Input name="email" type="email" placeholder="john@example.com" /></Label>
           <Label>Phone<Input name="phone" placeholder="+63..." /></Label>
-          <Label>Position<Input name="position" placeholder="Teacher" /></Label>
-          <Label>Department<Input name="department" placeholder="Operations" /></Label>
-          <Label>Role<Select name="role"><option value="employee">Employee</option><option value="admin">Administrator</option><option value="viewer">Viewer</option></Select></Label>
+          <Label>Role<Select name="position">{workforceRoles.map((role) => <option key={role} value={role}>{role}</option>)}</Select></Label>
+          <Label>Department<Select name="department">{departments.map((item) => <option key={item} value={item}>{item}</option>)}</Select></Label>
+          <input type="hidden" name="role" value="employee" />
           <Label>Status<Select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></Select></Label>
           <Label>Profile Photo<Input name="photo" type="file" accept="image/*" /></Label>
           <Button type="submit">Save Staff</Button>
@@ -83,7 +84,7 @@ export function EmployeeManager() {
               <span className="text-sm font-bold text-slate-500">{employee.employee_id}</span>
             </div>
             <span>{employee.email}</span>
-            <span className="text-sm text-slate-500">{employee.position} {employee.department ? `- ${employee.department}` : ""}</span>
+            <span className="text-sm text-slate-500">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
             <span className="w-max rounded-full bg-brand-lime px-3 py-1 text-xs font-black uppercase">{employee.status}</span>
           </Card>
         ))}

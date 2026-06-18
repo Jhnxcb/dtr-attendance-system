@@ -10,7 +10,7 @@ import { queueLocalAttendanceScan, saveOnlineRecordLocally, syncPendingAttendanc
 import { formatDeviceInfo } from "@/lib/utils";
 import type { AttendanceType, Employee } from "@/lib/types";
 
-type EmployeePreview = Pick<Employee, "employee_id" | "full_name" | "email" | "profile_photo_url" | "branch_name">;
+type EmployeePreview = Pick<Employee, "employee_id" | "full_name" | "email" | "profile_photo_url" | "position" | "department" | "branch_name">;
 const branchOptions = ["Camp Goducate", "Doane Baptist Church"];
 
 export function AttendanceScanner() {
@@ -235,7 +235,7 @@ export function AttendanceScanner() {
       setLastResult({ type: payload.attendanceType, verificationId: payload.verificationId, warnings });
       saveOnlineRecordLocally(payload.record);
       playScanSound("success");
-      say(warnings.length ? `${payload.employee.full_name} saved, but Google Sheets needs attention.` : `${payload.employee.full_name} ${payload.attendanceType} recorded.`);
+      say(warnings.length ? `${payload.employee.full_name} saved, but Google Sheets needs attention.` : "Attendance recorded successfully. Stay for a while for photo evidence.");
     } catch (error) {
       if (!navigator.onLine || error instanceof TypeError) {
         try {
@@ -330,6 +330,7 @@ export function AttendanceScanner() {
               {employee.profile_photo_url ? <img src={employee.profile_photo_url} alt="" className="h-56 w-full rounded-ui object-cover" /> : null}
               <strong className="text-2xl text-brand-dark">{employee.full_name}</strong>
               <span className="font-bold text-slate-600">{employee.employee_id}</span>
+              <span className="font-bold text-slate-600">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
               <span>{employee.email}</span>
               <span>{employee.branch_name}</span>
             </div>

@@ -4,6 +4,8 @@ export interface OverlayInput {
   originalPhoto: Buffer;
   employeeName: string;
   employeeId: string;
+  role?: string | null;
+  department?: string | null;
   attendanceType: AttendanceType;
   date: string;
   time: string;
@@ -17,22 +19,22 @@ export interface OverlayInput {
 export async function createVerificationImage(input: OverlayInput) {
   const lines = [
     input.employeeName,
-    `Employee ID: ${input.employeeId}`,
-    input.attendanceType,
+    `${input.role || "Staff"}${input.department ? ` | ${input.department}` : ""}`,
     input.date,
     input.time,
     input.address,
-    `Lat: ${input.latitude.toFixed(6)}`,
-    `Lng: ${input.longitude.toFixed(6)}`,
+    input.attendanceType,
+    `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`,
     `Branch: ${input.branch}`,
+    `Employee ID: ${input.employeeId}`,
     `Verification ID: ${input.verificationId}`
   ];
 
   const imageBase64 = input.originalPhoto.toString("base64");
   const lineMarkup = lines
     .map((line, index) => {
-      const fill = index === 2 ? "#FFBF60" : "#FFFFFF";
-      const weight = index === 2 ? 800 : 700;
+      const fill = index === 5 ? "#FFBF60" : "#FFFFFF";
+      const weight = index === 0 || index === 5 ? 800 : 700;
       const y = 430 + index * 25;
       return `<text x="58" y="${y}" fill="${fill}" font-size="22" font-weight="${weight}">${escapeXml(line)}</text>`;
     })

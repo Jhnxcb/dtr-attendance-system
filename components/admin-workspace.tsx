@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { exportLocalAttendanceExcel, exportStaffAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
+import { departments, workforceRoles } from "@/lib/organization-options";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
 import { cn, formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
@@ -33,6 +34,7 @@ export function AdminWorkspace() {
   const [status, setStatus] = useState("Ready.");
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
+  const [department, setDepartment] = useState("");
   const [qrEmployeeId, setQrEmployeeId] = useState("");
 
   useEffect(() => {
@@ -138,16 +140,22 @@ export function AdminWorkspace() {
     ? `https://api.qrserver.com/v1/create-qr-code/?size=360x360&format=png&data=${encodeURIComponent(qrPayload)}`
     : "";
   const filteredRecords = records.filter((record) => {
-    const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address}`.toLowerCase();
-    return (!query || searchable.includes(query.toLowerCase())) && (!type || record.attendance_type === type);
+    const employee = employees.find((row) => row.employee_id === record.employee_id);
+    const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address} ${employee?.department || ""}`.toLowerCase();
+    return (!query || searchable.includes(query.toLowerCase())) &&
+      (!type || record.attendance_type === type) &&
+      (!department || employee?.department === department);
   });
   const localOnlyRecords = localRecords.filter((localRecord) => (
     localRecord.local_sync_status === "local-pending" &&
     !records.some((record) => record.id === localRecord.id || record.verification_id === localRecord.verification_id)
   ));
   const combinedRecords = [...filteredRecords, ...localOnlyRecords.filter((record) => {
-    const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address}`.toLowerCase();
-    return (!query || searchable.includes(query.toLowerCase())) && (!type || record.attendance_type === type);
+    const employee = employees.find((row) => row.employee_id === record.employee_id);
+    const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address} ${employee?.department || ""}`.toLowerCase();
+    return (!query || searchable.includes(query.toLowerCase())) &&
+      (!type || record.attendance_type === type) &&
+      (!department || employee?.department === department);
   })];
 
   function exportCsv() {
@@ -227,9 +235,9 @@ export function AdminWorkspace() {
                 <Label>Full Name<Input name="full_name" required placeholder="John Doe" /></Label>
                 <Label>Email<Input name="email" type="email" placeholder="john@example.com" /></Label>
                 <Label>Phone<Input name="phone" placeholder="+63..." /></Label>
-                <Label>Position<Input name="position" placeholder="Teacher" /></Label>
-                <Label>Department<Input name="department" placeholder="Operations" /></Label>
-                <Label>Role<Select name="role"><option value="employee">Employee</option><option value="admin">Administrator</option><option value="viewer">Viewer</option></Select></Label>
+                <Label>Role<Select name="position">{workforceRoles.map((role) => <option key={role} value={role}>{role}</option>)}</Select></Label>
+                <Label>Department<Select name="department">{departments.map((item) => <option key={item} value={item}>{item}</option>)}</Select></Label>
+                <input type="hidden" name="role" value="employee" />
                 <Label>Status<Select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></Select></Label>
                 <Label>Profile Photo<Input name="photo" type="file" accept="image/*" /></Label>
                 <Button type="submit">Save Staff</Button>
@@ -285,9 +293,10 @@ export function AdminWorkspace() {
         {activeTab === "reports" ? (
           <section className="grid gap-5">
             <Card>
-              <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+              <div className="grid gap-3 md:grid-cols-[1fr_220px_240px_auto]">
                 <Label>Search<Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Employee, branch, location" /></Label>
                 <Label>Type<Select value={type} onChange={(event) => setType(event.target.value)}><option value="">All</option><option value="TIME IN">TIME IN</option><option value="TIME OUT">TIME OUT</option></Select></Label>
+                <Label>Department<Select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">All departments</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</Select></Label>
                 <Button type="button" onClick={exportCsv}><Download size={16} /> Export CSV</Button>
               </div>
             </Card>
@@ -367,7 +376,7 @@ function StaffGrid({
             <span className="text-sm font-bold text-slate-500">{employee.employee_id}</span>
           </div>
           <span className="text-sm text-slate-600">{employee.email}</span>
-          <span className="text-sm text-slate-500">{employee.position} {employee.department ? `- ${employee.department}` : ""}</span>
+          <span className="text-sm font-bold text-slate-600">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
           <div className="flex items-center justify-between gap-2">
             <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black uppercase">{employee.status}</span>
             <div className="flex gap-2">
