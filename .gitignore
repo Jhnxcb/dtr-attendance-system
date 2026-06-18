@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.vercel/
 out/
 dist/
 
@@ -7,6 +8,8 @@ dist/
 .env*.local
 gokidz-asia-youtube-stats-*.json
 dtr-gokidz-*.json
+hip-fuze-*.json
+*service-account*.json
 
 *.tsbuildinfo
 npm-debug.log*
@@ -16,3 +19,5 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+
+.vercel

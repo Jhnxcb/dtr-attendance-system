@@ -1,7 +1,18 @@
 import { google } from "googleapis";
 import type { AttendanceRecord, Employee } from "@/lib/types";
+import { formatReadableDateTime } from "@/lib/utils";
+
+type SheetAttendanceRecord = AttendanceRecord & {
+  hours_worked?: string;
+  time_in?: string;
+  time_in_date?: string;
+};
 
 function getSheetsClient() {
+  if (process.env.GOOGLE_SHEETS_SYNC_ENABLED === "false") {
+    return null;
+  }
+
   const credentials = getGoogleCredentials();
   const email = credentials?.email || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = credentials?.key || normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
@@ -21,7 +32,7 @@ function getSheetsClient() {
 }
 
 function getGoogleCredentials() {
-  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const rawJson = getServiceAccountJson();
   if (!rawJson) return null;
 
   try {
@@ -37,6 +48,19 @@ function getGoogleCredentials() {
   }
 
   return null;
+}
+
+function getServiceAccountJson() {
+  const rawBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+  if (rawBase64) {
+    try {
+      return Buffer.from(rawBase64.trim(), "base64").toString("utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  return process.env.GOOGLE_SERVICE_ACCOUNT_JSON || null;
 }
 
 function normalizePrivateKey(rawKey?: string) {
@@ -84,16 +108,17 @@ async function ensureSheet(title: string, headers: string[]) {
       spreadsheetId: client.spreadsheetId,
       requestBody: { requests: [{ addSheet: { properties: { title } } }] }
     });
-    await client.sheets.spreadsheets.values.update({
-      spreadsheetId: client.spreadsheetId,
-      range: `${title}!A1`,
-      valueInputOption: "RAW",
-      requestBody: { values: [headers] }
-    });
   }
+
+  await client.sheets.spreadsheets.values.update({
+    spreadsheetId: client.spreadsheetId,
+    range: `${title}!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [headers] }
+  });
 }
 
-export async function syncAttendanceToSheets(record: AttendanceRecord) {
+export async function syncAttendanceToSheets(record: SheetAttendanceRecord) {
   const client = getSheetsClient();
   if (!client) return;
 
@@ -103,16 +128,18 @@ export async function syncAttendanceToSheets(record: AttendanceRecord) {
     const monthlySheet = `${year}_${month}`;
     const employeeSheet = `EMP_${record.employee_name.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}`;
 
-    const masterHeaders = ["Timestamp", "Date", "Month", "Employee ID", "Name", "Email", "Attendance Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo URL", "Verification Photo URL"];
+    const masterHeaders = ["Timestamp", "Date", "Month", "Employee ID", "Name", "Email", "Attendance Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo URL", "Verification Photo URL", "Hours Worked"];
     await ensureSheet("MASTER_ATTENDANCE", masterHeaders);
     await ensureSheet(monthlySheet, masterHeaders);
     await ensureSheet(employeeSheet, ["Date", "Time In", "Time Out", "Hours Worked", "Branch", "Location", "Status"]);
     await ensureSheet("ATTENDANCE_EVIDENCE", ["Timestamp", "Employee ID", "Employee Name", "Attendance Type", "Original Photo URL", "Verification Photo URL", "Location"]);
 
-    const masterRow = [record.timestamp, record.date, month, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url];
+    const readableTimestamp = formatReadableDateTime(record.timestamp);
+    const masterRow = [readableTimestamp, record.date, month, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url, record.hours_worked || ""];
     await append(client, "MASTER_ATTENDANCE", masterRow);
     await append(client, monthlySheet, masterRow);
-    await append(client, "ATTENDANCE_EVIDENCE", [record.timestamp, record.employee_id, record.employee_name, record.attendance_type, record.original_photo_url, record.verification_photo_url, record.address]);
+    await upsertEmployeeAttendanceRow(client, employeeSheet, record);
+    await append(client, "ATTENDANCE_EVIDENCE", [readableTimestamp, record.employee_id, record.employee_name, record.attendance_type, record.original_photo_url, record.verification_photo_url, record.address]);
   } catch (error) {
     return { warning: error instanceof Error ? error.message : "Google Sheets sync failed." };
   }
@@ -137,4 +164,49 @@ async function append(client: NonNullable<ReturnType<typeof getSheetsClient>>, s
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] }
   });
+}
+
+async function upsertEmployeeAttendanceRow(
+  client: NonNullable<ReturnType<typeof getSheetsClient>>,
+  sheet: string,
+  record: SheetAttendanceRecord
+) {
+  if (record.attendance_type === "TIME IN") {
+    await append(client, sheet, [record.date, record.time, "", "", record.branch, record.address, "Open"]);
+    return;
+  }
+
+  const rowsResponse = await client.sheets.spreadsheets.values.get({
+    spreadsheetId: client.spreadsheetId,
+    range: `${sheet}!A2:G`
+  });
+  const rows = rowsResponse.data.values || [];
+  const rowIndex = findOpenEmployeeRow(rows, record.time_in_date || record.date);
+
+  if (rowIndex === -1) {
+    await append(client, sheet, [record.time_in_date || record.date, record.time_in || "", record.time, record.hours_worked || "", record.branch, record.address, record.time_in ? "Complete" : "Missing TIME IN"]);
+    return;
+  }
+
+  await client.sheets.spreadsheets.values.update({
+    spreadsheetId: client.spreadsheetId,
+    range: `${sheet}!C${rowIndex + 2}:G${rowIndex + 2}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [[record.time, record.hours_worked || "", record.branch, record.address, "Complete"]]
+    }
+  });
+}
+
+function findOpenEmployeeRow(rows: unknown[][], date: string) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    const rowDate = String(row[0] || "");
+    const timeOut = String(row[2] || "");
+    if (rowDate === date && !timeOut) {
+      return index;
+    }
+  }
+
+  return -1;
 }

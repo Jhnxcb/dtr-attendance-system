@@ -1,47 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Building2, Clock, LogIn, LogOut, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { createSupabaseBrowserClient, hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
+import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
+import { formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord } from "@/lib/types";
 
 export function DashboardClient() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const hasBackend = hasSupabaseBrowserConfig();
-  const supabase = useMemo(() => (hasBackend ? createSupabaseBrowserClient() : null), [hasBackend]);
 
   useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
     loadRecords();
-    const channel = supabase
-      .channel("attendance-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_records" }, () => loadRecords())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase]);
+    const timer = window.setInterval(loadRecords, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function loadRecords() {
-    if (!supabase) {
-      return;
-    }
-
-    const { data } = await supabase
-      .from("attendance_records")
-      .select("*")
-      .order("timestamp", { ascending: false })
-      .limit(200);
-    setRecords((data || []) as AttendanceRecord[]);
+    const response = await fetch("/api/attendance-records?limit=200");
+    if (!response.ok) return;
+    const payload = await response.json();
+    setRecords((payload || []) as AttendanceRecord[]);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayRows = records.filter((record) => record.timestamp.startsWith(today));
+  const todayRows = records.filter((record) => isSameLocalDate(record.timestamp));
   const timeIns = todayRows.filter((record) => record.attendance_type === "TIME IN");
   const timeOuts = todayRows.filter((record) => record.attendance_type === "TIME OUT");
   const branchCount = new Set(records.map((record) => record.branch)).size;
@@ -92,7 +76,7 @@ export function DashboardClient() {
                 </div>
                 <div className="grid justify-items-start gap-2 md:justify-items-end">
                   <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black">{record.attendance_type}</span>
-                  <span className="text-sm text-slate-500">{record.date} {record.time}</span>
+                  <span className="text-sm text-slate-500">{formatReadableDateTime(record.timestamp)}</span>
                   <a className="text-sm font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Evidence</a>
                 </div>
               </article>

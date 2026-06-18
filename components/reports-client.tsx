@@ -1,33 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
-import { createSupabaseBrowserClient, hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
+import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
+import { formatReadableDateTime } from "@/lib/utils";
 import type { AttendanceRecord } from "@/lib/types";
 
 export function ReportsClient() {
   const hasBackend = hasSupabaseBrowserConfig();
-  const supabase = useMemo(() => (hasBackend ? createSupabaseBrowserClient() : null), [hasBackend]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
 
   useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
-    supabase
-      .from("attendance_records")
-      .select("*")
-      .order("timestamp", { ascending: false })
-      .limit(1000)
-      .then(({ data }) => setRecords((data || []) as AttendanceRecord[]));
-  }, [supabase]);
+    fetch("/api/attendance-records?limit=1000")
+      .then((response) => response.ok ? response.json() : [])
+      .then((data) => setRecords((data || []) as AttendanceRecord[]));
+  }, []);
 
   const filtered = records.filter((record) => {
     const text = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address}`.toLowerCase();
@@ -36,7 +29,7 @@ export function ReportsClient() {
 
   function exportCsv() {
     const headers = ["Timestamp", "Date", "Time", "Employee ID", "Name", "Email", "Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo", "Verification Photo"];
-    const csv = [headers, ...filtered.map((record) => [record.timestamp, record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
+    const csv = [headers, ...filtered.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
       .map((row) => row.map((cell) => `"${String(cell || "").replaceAll('"', '""')}"`).join(","))
       .join("\n");
     const link = document.createElement("a");
@@ -77,7 +70,7 @@ export function ReportsClient() {
               <tbody>
                 {filtered.map((record) => (
                   <tr key={record.id} className="border-b">
-                    <td className="p-3">{record.date} {record.time}</td>
+                    <td className="p-3">{formatReadableDateTime(record.timestamp)}</td>
                     <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                     <td className="p-3">{record.attendance_type}</td>
                     <td className="p-3">{record.branch}</td>

@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import type { AttendanceRecord } from "@/lib/types";
 
 export async function sendAttendanceEmail(record: AttendanceRecord) {
+  if (process.env.EMAIL_NOTIFICATIONS_ENABLED === "false") return;
   if (!record.email || !process.env.RESEND_API_KEY) return;
 
   const resend = new Resend(process.env.RESEND_API_KEY);

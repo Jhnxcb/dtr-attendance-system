@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 
 export async function GET() {
+  if (process.env.GOOGLE_SHEETS_SYNC_ENABLED === "false") {
+    return NextResponse.json({
+      ok: false,
+      disabled: true,
+      error: "Google Sheets sync is disabled."
+    });
+  }
+
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const rawJson = getServiceAccountJson();
   const fallbackEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const fallbackKey = process.env.GOOGLE_PRIVATE_KEY;
 
@@ -66,6 +74,19 @@ function parseServiceAccountJson(rawJson?: string) {
   } catch {
     return null;
   }
+}
+
+function getServiceAccountJson() {
+  const rawBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+  if (rawBase64) {
+    try {
+      return Buffer.from(rawBase64.trim(), "base64").toString("utf8");
+    } catch {
+      return undefined;
+    }
+  }
+
+  return process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 }
 
 function normalizePrivateKey(rawKey?: string) {

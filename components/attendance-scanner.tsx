@@ -6,6 +6,7 @@ import { Camera, MapPin, QrCode, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+import { queueLocalAttendanceScan, saveOnlineRecordLocally, syncPendingAttendanceScans } from "@/lib/local-attendance";
 import { formatDeviceInfo } from "@/lib/utils";
 import type { AttendanceType, Employee } from "@/lib/types";
 
@@ -56,6 +57,20 @@ export function AttendanceScanner() {
     return () => window.clearInterval(timer);
   }, [stream, busy]);
 
+  useEffect(() => {
+    function syncLocalBackups() {
+      syncPendingAttendanceScans().then((result) => {
+        if (result.synced) {
+          setStatus(`${result.synced} local scan${result.synced === 1 ? "" : "s"} backed up online.`);
+        }
+      });
+    }
+
+    syncLocalBackups();
+    window.addEventListener("online", syncLocalBackups);
+    return () => window.removeEventListener("online", syncLocalBackups);
+  }, []);
+
   function say(message: string) {
     setStatus(message);
     if (!("speechSynthesis" in window)) return;
@@ -66,20 +81,33 @@ export function AttendanceScanner() {
     window.speechSynthesis.speak(utterance);
   }
 
-  function playScanSound() {
+  function playScanSound(kind: "detected" | "success" | "error" = "success") {
     try {
       const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
       const audio = new AudioContextClass();
-      const oscillator = audio.createOscillator();
-      const gain = audio.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.value = 880;
-      gain.gain.value = 0.08;
-      oscillator.connect(gain);
-      gain.connect(audio.destination);
-      oscillator.start();
-      oscillator.stop(audio.currentTime + 0.14);
+      const notes = {
+        detected: [740],
+        success: [880, 1175],
+        error: [220, 165]
+      }[kind];
+
+      notes.forEach((frequency, index) => {
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        const startAt = audio.currentTime + index * 0.12;
+        const stopAt = startAt + 0.11;
+
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.16, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+        oscillator.connect(gain);
+        gain.connect(audio.destination);
+        oscillator.start(startAt);
+        oscillator.stop(stopAt);
+      });
     } catch {
       // Sound feedback is optional.
     }
@@ -175,6 +203,7 @@ export function AttendanceScanner() {
   async function submitAttendance(code: string) {
     if (busy) return;
     setBusy(true);
+    playScanSound("detected");
     try {
       if (!stream) throw new Error("Camera is required.");
       say("Taking photo for evidence.");
@@ -182,28 +211,55 @@ export function AttendanceScanner() {
       say("Getting GPS location.");
       const position = await getGps();
       say("Saving attendance evidence.");
+      const attendancePayload = {
+        code,
+        branch,
+        device: formatDeviceInfo(),
+        photoDataUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
 
       const response = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          branch,
-          device: formatDeviceInfo(),
-          photoDataUrl,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude
-        })
+        body: JSON.stringify(attendancePayload)
       });
 
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Attendance was rejected.");
+      if (!response.ok) {
+        throw new Error(payload.error || "Attendance was rejected.");
+      }
       setEmployee(payload.employee);
       const warnings = Array.isArray(payload.integrationWarnings) ? payload.integrationWarnings : [];
       setLastResult({ type: payload.attendanceType, verificationId: payload.verificationId, warnings });
-      playScanSound();
+      saveOnlineRecordLocally(payload.record);
+      playScanSound("success");
       say(warnings.length ? `${payload.employee.full_name} saved, but Google Sheets needs attention.` : `${payload.employee.full_name} ${payload.attendanceType} recorded.`);
     } catch (error) {
+      if (!navigator.onLine || error instanceof TypeError) {
+        try {
+          const photoDataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.75);
+          if (photoDataUrl) {
+            const position = await getGps();
+            const localRecord = queueLocalAttendanceScan({
+              code,
+              branch,
+              device: formatDeviceInfo(),
+              photoDataUrl,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            }, error instanceof Error ? error.message : "Waiting for online backup.");
+            setLastResult({ type: localRecord.attendance_type, verificationId: localRecord.verification_id, warnings: ["Saved locally. It will backup online when internet returns."] });
+            playScanSound("success");
+            say("Saved locally. It will backup online when internet returns.");
+            return;
+          }
+        } catch {
+          // Fall through to normal error feedback.
+        }
+      }
+      playScanSound("error");
       say(error instanceof Error ? error.message : "Attendance failed.");
     } finally {
       window.setTimeout(() => setBusy(false), 2200);

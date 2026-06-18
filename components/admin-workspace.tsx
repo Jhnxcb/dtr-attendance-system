@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Camera, Download, FileSpreadsheet, QrCode, Settings, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
-import { createSupabaseBrowserClient, hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { cn } from "@/lib/utils";
+import { exportLocalAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
+import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
+import { cn, formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
 
 type AdminTab = "overview" | "staff" | "qr" | "reports" | "settings";
@@ -24,10 +25,11 @@ const tabs: { id: AdminTab; label: string; icon: typeof Users }[] = [
 
 export function AdminWorkspace() {
   const hasBackend = hasSupabaseBrowserConfig();
-  const supabase = useMemo(() => (hasBackend ? createSupabaseBrowserClient() : null), [hasBackend]);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [localRecords, setLocalRecords] = useState<LocalAttendanceRecord[]>([]);
+  const [pendingLocalCount, setPendingLocalCount] = useState(0);
   const [status, setStatus] = useState("Ready.");
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
@@ -38,18 +40,20 @@ export function AdminWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
-
-    loadRecords();
-    const channel = supabase
-      .channel("admin-workspace")
-      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_records" }, () => loadRecords())
-      .subscribe();
-
+    loadLocalRecords();
+    window.addEventListener("dtr-local-attendance-change", loadLocalRecords);
+    window.addEventListener("storage", loadLocalRecords);
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener("dtr-local-attendance-change", loadLocalRecords);
+      window.removeEventListener("storage", loadLocalRecords);
     };
-  }, [supabase]);
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+    const timer = window.setInterval(loadRecords, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function loadEmployees() {
     const response = await fetch("/api/employees");
@@ -66,14 +70,26 @@ export function AdminWorkspace() {
   }
 
   async function loadRecords() {
-    if (!supabase) return;
+    const response = await fetch("/api/attendance-records?limit=500");
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatus(payload.error || "Could not load attendance records.");
+      return;
+    }
+    setRecords((payload || []) as AttendanceRecord[]);
+  }
 
-    const { data } = await supabase
-      .from("attendance_records")
-      .select("*")
-      .order("timestamp", { ascending: false })
-      .limit(500);
-    setRecords((data || []) as AttendanceRecord[]);
+  function loadLocalRecords() {
+    setLocalRecords(getLocalAttendanceRecords());
+    setPendingLocalCount(getPendingAttendanceScans().length);
+  }
+
+  async function backupLocalRecords() {
+    setStatus("Backing up local scans online...");
+    const result = await syncPendingAttendanceScans();
+    loadLocalRecords();
+    await loadRecords();
+    setStatus(`${result.synced} local scan${result.synced === 1 ? "" : "s"} backed up. ${result.remaining} still local.`);
   }
 
   async function saveEmployee(formData: FormData) {
@@ -112,8 +128,7 @@ export function AdminWorkspace() {
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const todayRows = records.filter((record) => record.timestamp.startsWith(today));
+  const todayRows = records.filter((record) => isSameLocalDate(record.timestamp));
   const activeEmployees = employees;
   const selectedQrEmployee = employees.find((employee) => employee.employee_id === qrEmployeeId);
   const qrPayload = selectedQrEmployee
@@ -126,10 +141,18 @@ export function AdminWorkspace() {
     const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address}`.toLowerCase();
     return (!query || searchable.includes(query.toLowerCase())) && (!type || record.attendance_type === type);
   });
+  const localOnlyRecords = localRecords.filter((localRecord) => (
+    localRecord.local_sync_status === "local-pending" &&
+    !records.some((record) => record.id === localRecord.id || record.verification_id === localRecord.verification_id)
+  ));
+  const combinedRecords = [...filteredRecords, ...localOnlyRecords.filter((record) => {
+    const searchable = `${record.employee_name} ${record.employee_id} ${record.branch} ${record.address}`.toLowerCase();
+    return (!query || searchable.includes(query.toLowerCase())) && (!type || record.attendance_type === type);
+  })];
 
   function exportCsv() {
     const headers = ["Timestamp", "Date", "Time", "Employee ID", "Name", "Email", "Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo", "Verification Photo"];
-    const csv = [headers, ...filteredRecords.map((record) => [record.timestamp, record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
+    const csv = [headers, ...combinedRecords.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
       .map((row) => row.map((cell) => `"${String(cell || "").replaceAll('"', '""')}"`).join(","))
       .join("\n");
     const link = document.createElement("a");
@@ -268,7 +291,17 @@ export function AdminWorkspace() {
                 <Button type="button" onClick={exportCsv}><Download size={16} /> Export CSV</Button>
               </div>
             </Card>
-            <ReportsTable records={filteredRecords} />
+            <Card>
+              <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                <div>
+                  <strong className="block text-brand-dark">Local backup on this device</strong>
+                  <span className="text-sm text-slate-500">{localRecords.length} local records, {pendingLocalCount} waiting for online backup.</span>
+                </div>
+                <Button type="button" variant="outline" onClick={backupLocalRecords}>Backup Now</Button>
+                <Button type="button" onClick={() => exportLocalAttendanceExcel(combinedRecords)}><Download size={16} /> Download Excel</Button>
+              </div>
+            </Card>
+            <ReportsTable records={combinedRecords} />
           </section>
         ) : null}
 
@@ -389,7 +422,7 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
           <tbody>
             {records.map((record) => (
               <tr key={record.id} className="border-b">
-                <td className="p-3">{record.date} {record.time}</td>
+                <td className="p-3">{formatReadableDateTime(record.timestamp)}</td>
                 <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                 <td className="p-3">{record.attendance_type}</td>
                 <td className="p-3">{record.branch}</td>

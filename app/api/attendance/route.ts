@@ -14,6 +14,7 @@ interface AttendanceRequest {
   photoDataUrl: string;
   latitude: number;
   longitude: number;
+  capturedAt?: string;
 }
 
 export async function POST(request: Request) {
@@ -44,12 +45,24 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
 
-    if (latest && Date.now() - new Date(latest.timestamp).getTime() < 60_000) {
+    const timestamp = body.capturedAt ? new Date(body.capturedAt) : new Date();
+    if (Number.isNaN(timestamp.getTime())) {
+      return NextResponse.json({ error: "Invalid scan timestamp." }, { status: 400 });
+    }
+
+    if (latest) {
+      const latestTimestamp = new Date(latest.timestamp).getTime();
+      const elapsedSinceLatest = timestamp.getTime() - latestTimestamp;
+      if (elapsedSinceLatest >= 0 && elapsedSinceLatest < 60_000) {
+        return NextResponse.json({ error: "Duplicate scan blocked. Please wait before scanning again." }, { status: 409 });
+      }
+    }
+
+    if (latest && Date.now() - new Date(latest.timestamp).getTime() < 60_000 && !body.capturedAt) {
       return NextResponse.json({ error: "Duplicate scan blocked. Please wait before scanning again." }, { status: 409 });
     }
 
     const attendanceType: AttendanceType = latest?.attendance_type === "TIME IN" ? "TIME OUT" : "TIME IN";
-    const timestamp = new Date();
     const date = format(timestamp, "MMMM d, yyyy");
     const time = format(timestamp, "hh:mm:ss a");
     const verificationId = generateVerificationId(timestamp, Math.floor(Math.random() * 9999) + 1);
@@ -110,8 +123,12 @@ export async function POST(request: Request) {
     if (insertError) throw insertError;
 
     const record = saved as AttendanceRecord;
+    const sheetRecord = {
+      ...record,
+      ...getWorkedHours(latest, record)
+    };
     const [sheetsResult, emailResult] = await Promise.allSettled([
-      syncAttendanceToSheets(record),
+      syncAttendanceToSheets(sheetRecord),
       sendAttendanceEmail(record)
     ]);
     const integrationWarnings = collectIntegrationWarnings(sheetsResult, emailResult);
@@ -126,6 +143,29 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Attendance failed." }, { status: 500 });
   }
+}
+
+function getWorkedHours(
+  latest: { attendance_type: AttendanceType; timestamp: string } | null,
+  record: AttendanceRecord
+) {
+  if (record.attendance_type !== "TIME OUT" || latest?.attendance_type !== "TIME IN") {
+    return {};
+  }
+
+  const timeInTimestamp = new Date(latest.timestamp);
+  const timeOutTimestamp = new Date(record.timestamp);
+  const elapsedHours = (timeOutTimestamp.getTime() - timeInTimestamp.getTime()) / 3_600_000;
+
+  if (!Number.isFinite(elapsedHours) || elapsedHours < 0) {
+    return {};
+  }
+
+  return {
+    hours_worked: elapsedHours.toFixed(2),
+    time_in: format(timeInTimestamp, "hh:mm:ss a"),
+    time_in_date: format(timeInTimestamp, "MMMM d, yyyy")
+  };
 }
 
 function collectIntegrationWarnings(...results: PromiseSettledResult<unknown>[]) {
@@ -157,6 +197,10 @@ function parseEmployeeCode(code: string) {
 }
 
 async function reverseGeocode(latitude: number, longitude: number) {
+  if (process.env.REVERSE_GEOCODING_ENABLED === "false") {
+    return `${latitude}, ${longitude}`;
+  }
+
   try {
     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
       headers: { "User-Agent": "DTR Attendance System" }
