@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
-import { Camera, MapPin, QrCode, ShieldCheck } from "lucide-react";
+import { Camera, QrCode, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -25,7 +25,7 @@ export function AttendanceScanner() {
   const [clock, setClock] = useState("");
   const [status, setStatus] = useState("Start camera to scan attendance.");
   const [employee, setEmployee] = useState<EmployeePreview | null>(null);
-  const [lastResult, setLastResult] = useState<{ type: AttendanceType; verificationId: string; warnings: string[] } | null>(null);
+  const [lastResult, setLastResult] = useState<{ type: AttendanceType; verificationId: string; evidenceUrl?: string; warnings: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -237,7 +237,12 @@ export function AttendanceScanner() {
       }
       setEmployee(payload.employee);
       const warnings = Array.isArray(payload.integrationWarnings) ? payload.integrationWarnings : [];
-      setLastResult({ type: payload.attendanceType, verificationId: payload.verificationId, warnings });
+      setLastResult({
+        type: payload.attendanceType,
+        verificationId: payload.verificationId,
+        evidenceUrl: payload.record?.verification_photo_url,
+        warnings
+      });
       saveOnlineRecordLocally(payload.record);
       playScanSound("success");
       say(warnings.length ? `${payload.employee.full_name} saved, but Google Sheets needs attention.` : "Attendance recorded successfully. Stay for a while for photo evidence.");
@@ -255,7 +260,12 @@ export function AttendanceScanner() {
               latitude: position.coords.latitude,
               longitude: position.coords.longitude
             }, error instanceof Error ? error.message : "Waiting for online backup.");
-            setLastResult({ type: localRecord.attendance_type, verificationId: localRecord.verification_id, warnings: ["Saved locally. It will backup online when internet returns."] });
+            setLastResult({
+              type: localRecord.attendance_type,
+              verificationId: localRecord.verification_id,
+              evidenceUrl: photoDataUrl,
+              warnings: ["Saved locally. It will backup online when internet returns."]
+            });
             playScanSound("success");
             say("Saved locally. It will backup online when internet returns.");
             return;
@@ -365,14 +375,22 @@ export function AttendanceScanner() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Validation</CardTitle>
-            <MapPin className="text-brand-hill" />
+            <CardTitle>Captured Evidence Photo</CardTitle>
+            <Camera className="text-brand-hill" />
           </CardHeader>
-          <p className="text-sm text-slate-600">
-            {lastResult
-              ? "Photo evidence captured and taken successfully."
-              : "Photo evidence will be captured and taken during attendance scan."}
-          </p>
+          {lastResult?.evidenceUrl ? (
+            <div className="grid gap-3">
+              <a href={lastResult.evidenceUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-ui border border-slate-200 bg-brand-light-yellow">
+                <img src={lastResult.evidenceUrl} alt="Latest captured evidence" className="aspect-video w-full object-cover" />
+              </a>
+              <div className="grid gap-1 text-sm">
+                <strong className="text-brand-dark">{lastResult.type}</strong>
+                <span className="font-semibold text-slate-500">{lastResult.verificationId}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">Recent captured evidence photo will appear here after a staff QR scan.</p>
+          )}
         </Card>
       </div>
     </div>
