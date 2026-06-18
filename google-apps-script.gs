@@ -2,6 +2,11 @@ const SHEET_NAME = "DTR Logs";
 
 function doPost(e) {
   const payload = JSON.parse(e.postData.contents);
+
+  if (payload.action === "sendAttendanceEmail") {
+    return sendAttendanceEmail_(payload);
+  }
+
   const sheet = getOrCreateSheet_(SHEET_NAME);
 
   sheet.appendRow([
@@ -56,4 +61,29 @@ function getOrCreateSheet_(name) {
     ]);
   }
   return sheet;
+}
+
+function sendAttendanceEmail_(payload) {
+  const expectedToken = PropertiesService.getScriptProperties().getProperty("DTR_EMAIL_TOKEN") || "";
+
+  if (expectedToken && payload.token !== expectedToken) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: "Unauthorized" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (!payload.to || !payload.subject || !payload.html) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: "Missing email fields" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  GmailApp.sendEmail(payload.to, payload.subject, payload.text || "", {
+    htmlBody: payload.html,
+    name: "DTR Attendance"
+  });
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
