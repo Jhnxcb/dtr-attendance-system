@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     };
     const [sheetsResult, emailResult] = await Promise.allSettled([
       syncAttendanceToSheets(sheetRecord),
-      sendAttendanceEmail(record)
+      sendAttendanceEmail(sheetRecord)
     ]);
     const integrationWarnings = collectIntegrationWarnings(sheetsResult, emailResult);
 
