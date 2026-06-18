@@ -92,21 +92,21 @@ export function AttendanceScanner() {
       if (!AudioContextClass) return;
       const audio = new AudioContextClass();
       const notes = {
-        detected: [740],
-        success: [880, 1175],
-        error: [220, 165]
+        detected: [1046],
+        success: [1175, 1568],
+        error: [247, 196]
       }[kind];
 
       notes.forEach((frequency, index) => {
         const oscillator = audio.createOscillator();
         const gain = audio.createGain();
-        const startAt = audio.currentTime + index * 0.12;
-        const stopAt = startAt + 0.11;
+        const startAt = audio.currentTime + index * 0.09;
+        const stopAt = startAt + 0.14;
 
-        oscillator.type = "sine";
+        oscillator.type = kind === "error" ? "sawtooth" : "square";
         oscillator.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.16, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(kind === "success" ? 0.52 : 0.42, startAt + 0.012);
         gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
         oscillator.connect(gain);
         gain.connect(audio.destination);
