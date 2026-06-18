@@ -47,6 +47,18 @@ export function formatReadableDate(value: string | Date) {
   }).format(date);
 }
 
+export function formatAttendanceDate(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "");
+
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
+  }).format(date);
+}
+
 export function formatReadableTime(value: string | Date) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -62,9 +74,24 @@ export function formatReadableTime(value: string | Date) {
 
 export function isSameLocalDate(value: string | Date, date = new Date()) {
   const first = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(first.getTime())) return false;
+  const second = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) return false;
 
-  return first.getFullYear() === date.getFullYear() &&
-    first.getMonth() === date.getMonth() &&
-    first.getDate() === date.getDate();
+  return getLocalDateKey(first) === getLocalDateKey(second);
+}
+
+export function getLocalDateKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: APP_TIME_ZONE
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value || "0000";
+  const month = parts.find((part) => part.type === "month")?.value || "00";
+  const day = parts.find((part) => part.type === "day")?.value || "00";
+  return `${year}-${month}-${day}`;
 }

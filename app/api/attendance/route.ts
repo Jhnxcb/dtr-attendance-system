@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { format } from "date-fns";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { dataUrlToBuffer, createVerificationImage } from "@/lib/photo";
-import { generateVerificationId } from "@/lib/utils";
+import { formatAttendanceDate, formatReadableTime, generateVerificationId, getLocalDateKey, isSameLocalDate } from "@/lib/utils";
 import { sendAttendanceEmail } from "@/lib/email";
 import { syncAttendanceToSheets } from "@/lib/google-sheets";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
@@ -62,9 +61,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Duplicate scan blocked. Please wait before scanning again." }, { status: 409 });
     }
 
-    const attendanceType: AttendanceType = latest?.attendance_type === "TIME IN" ? "TIME OUT" : "TIME IN";
-    const date = format(timestamp, "MMMM d, yyyy");
-    const time = format(timestamp, "hh:mm:ss a");
+    const canCloseToday = latest?.attendance_type === "TIME IN" && isSameLocalDate(latest.timestamp, timestamp);
+    const attendanceType: AttendanceType = canCloseToday ? "TIME OUT" : "TIME IN";
+    const date = formatAttendanceDate(timestamp);
+    const time = formatReadableTime(timestamp);
     const verificationId = generateVerificationId(timestamp, Math.floor(Math.random() * 9999) + 1);
     const address = await reverseGeocode(body.latitude, body.longitude);
     const branchName = body.branch || employee.branches?.name || "Unassigned branch";
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     });
 
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || "attendance-evidence";
-    const folder = `${employee.employee_id}/${format(timestamp, "yyyyMMdd")}`;
+    const folder = `${employee.employee_id}/${getLocalDateKey(timestamp).replaceAll("-", "")}`;
     const originalPath = `${folder}/${verificationId}-original.jpg`;
     const verifiedPath = `${folder}/${verificationId}-verified.jpg`;
 
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       ...record,
       role: employee.position || "Staff",
       department: employee.department || "",
-      ...getWorkedHours(latest, record)
+      ...getWorkedHours(canCloseToday ? latest : null, record)
     };
     const [sheetsResult, emailResult] = await Promise.allSettled([
       syncAttendanceToSheets(sheetRecord),
@@ -167,8 +167,8 @@ function getWorkedHours(
 
   return {
     hours_worked: elapsedHours.toFixed(2),
-    time_in: format(timeInTimestamp, "hh:mm:ss a"),
-    time_in_date: format(timeInTimestamp, "MMMM d, yyyy")
+    time_in: formatReadableTime(timeInTimestamp),
+    time_in_date: formatAttendanceDate(timeInTimestamp)
   };
 }
 
