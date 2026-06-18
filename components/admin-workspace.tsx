@@ -10,7 +10,7 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { exportLocalAttendanceExcel, exportStaffAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
 import { departments, workforceRoles } from "@/lib/organization-options";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { cn, formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
+import { cn, formatReadableDate, formatReadableDateTime, formatReadableTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
 
 type AdminTab = "overview" | "staff" | "qr" | "reports" | "settings";
@@ -248,7 +248,7 @@ export function AdminWorkspace() {
         ) : null}
 
         {activeTab === "staff" ? (
-          <section className="grid gap-5 xl:grid-cols-[440px_1fr]">
+          <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
             <Card>
               <CardHeader><CardTitle>Add / Update Staff</CardTitle><Users className="text-brand-hill" /></CardHeader>
               <form action={saveEmployee} className="grid gap-3">
@@ -388,17 +388,23 @@ function StaffGrid({
   onRemove: (employeeId: string, fullName: string) => void;
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid items-start gap-4 sm:grid-cols-2 2xl:grid-cols-3">
       {employees.map((employee) => (
-        <Card key={employee.employee_id} className="grid gap-3">
-          {employee.profile_photo_url ? <img src={employee.profile_photo_url} alt="" className="h-44 w-full rounded-ui object-cover" /> : <div className="h-44 rounded-ui bg-brand-light-yellow" />}
+        <Card key={employee.employee_id} className="grid min-h-full gap-4">
+          {employee.profile_photo_url ? (
+            <img src={employee.profile_photo_url} alt="" className="aspect-square w-full rounded-ui object-cover" />
+          ) : (
+            <div className="aspect-square w-full rounded-ui bg-brand-light-yellow" />
+          )}
           <div>
             <strong className="block text-lg text-brand-dark">{employee.full_name}</strong>
             <span className="text-sm font-bold text-slate-500">{employee.employee_id}</span>
           </div>
-          <span className="text-sm text-slate-600">{employee.email}</span>
-          <span className="text-sm font-bold text-slate-600">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
-          <div className="flex items-center justify-between gap-2">
+          <div className="grid gap-1 text-sm text-slate-600">
+            <span className="break-words">{employee.email}</span>
+            <span className="font-bold">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
+          </div>
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
             <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black uppercase">{employee.status}</span>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => onGenerate(employee.employee_id)}>QR</Button>
@@ -409,7 +415,7 @@ function StaffGrid({
                 onClick={() => onRemove(employee.employee_id, employee.full_name)}
               >
                 <Trash2 size={16} />
-                Remove
+                <span className="sr-only">Remove</span>
               </Button>
             </div>
           </div>
@@ -431,6 +437,7 @@ function LatestRecords({ records }: { records: AttendanceRecord[] }) {
               <strong className="block text-brand-dark">{record.employee_name}</strong>
               <span className="text-sm font-bold text-slate-500">{record.employee_id}</span>
               <p className="text-sm text-slate-600">{record.branch} - {record.address}</p>
+              <TimestampBlock value={record.timestamp} />
             </div>
             <div className="grid justify-items-start gap-2 md:justify-items-end">
               <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black">{record.attendance_type}</span>
@@ -455,7 +462,7 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
           <tbody>
             {records.map((record) => (
               <tr key={record.id} className="border-b">
-                <td className="p-3">{formatReadableDateTime(record.timestamp)}</td>
+                <td className="p-3"><TimestampBlock value={record.timestamp} /></td>
                 <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                 <td className="p-3">{record.attendance_type}</td>
                 <td className="p-3">{record.branch}</td>
@@ -467,6 +474,15 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
         </table>
       </div>
     </Card>
+  );
+}
+
+function TimestampBlock({ value }: { value: string | Date }) {
+  return (
+    <div className="grid gap-0.5">
+      <span className="font-bold text-brand-dark">{formatReadableDate(value)}</span>
+      <span className="text-sm font-semibold text-slate-500">{formatReadableTime(value)}</span>
+    </div>
   );
 }
 

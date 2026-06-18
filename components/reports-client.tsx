@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { formatReadableDateTime } from "@/lib/utils";
+import { formatReadableDate, formatReadableDateTime, formatReadableTime } from "@/lib/utils";
 import type { AttendanceRecord } from "@/lib/types";
 
 export function ReportsClient() {
@@ -70,7 +70,7 @@ export function ReportsClient() {
               <tbody>
                 {filtered.map((record) => (
                   <tr key={record.id} className="border-b">
-                    <td className="p-3">{formatReadableDateTime(record.timestamp)}</td>
+                    <td className="p-3"><TimestampBlock value={record.timestamp} /></td>
                     <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                     <td className="p-3">{record.attendance_type}</td>
                     <td className="p-3">{record.branch}</td>
@@ -84,5 +84,14 @@ export function ReportsClient() {
         </Card>
       </div>
     </AppShell>
+  );
+}
+
+function TimestampBlock({ value }: { value: string | Date }) {
+  return (
+    <div className="grid gap-0.5">
+      <span className="font-bold text-brand-dark">{formatReadableDate(value)}</span>
+      <span className="text-sm font-semibold text-slate-500">{formatReadableTime(value)}</span>
+    </div>
   );
 }

@@ -54,7 +54,7 @@ export function EmployeeManager() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
+    <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
       <Card>
         <CardHeader>
           <CardTitle>Staff Management</CardTitle>
@@ -75,16 +75,20 @@ export function EmployeeManager() {
         <p className="mt-3 text-sm text-slate-500">{status}</p>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-start gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         {employees.map((employee) => (
-          <Card key={employee.employee_id} className="grid gap-3">
-            {employee.profile_photo_url ? <img src={employee.profile_photo_url} alt="" className="h-44 w-full rounded-ui object-cover" /> : null}
+          <Card key={employee.employee_id} className="grid min-h-full gap-4">
+            {employee.profile_photo_url ? (
+              <img src={employee.profile_photo_url} alt="" className="aspect-square w-full rounded-ui object-cover" />
+            ) : (
+              <div className="aspect-square w-full rounded-ui bg-brand-light-yellow" />
+            )}
             <div>
               <strong className="block text-lg text-brand-dark">{employee.full_name}</strong>
               <span className="text-sm font-bold text-slate-500">{employee.employee_id}</span>
             </div>
-            <span>{employee.email}</span>
-            <span className="text-sm text-slate-500">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
+            <span className="break-words text-sm text-slate-600">{employee.email}</span>
+            <span className="text-sm font-bold text-slate-600">{employee.position || "Staff"} {employee.department ? `| ${employee.department}` : ""}</span>
             <span className="w-max rounded-full bg-brand-lime px-3 py-1 text-xs font-black uppercase">{employee.status}</span>
           </Card>
         ))}

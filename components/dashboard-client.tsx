@@ -5,7 +5,7 @@ import { Activity, Building2, Clock, LogIn, LogOut, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
+import { formatReadableDate, formatReadableTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord } from "@/lib/types";
 
 export function DashboardClient() {
@@ -76,7 +76,7 @@ export function DashboardClient() {
                 </div>
                 <div className="grid justify-items-start gap-2 md:justify-items-end">
                   <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black">{record.attendance_type}</span>
-                  <span className="text-sm text-slate-500">{formatReadableDateTime(record.timestamp)}</span>
+                  <TimestampBlock value={record.timestamp} />
                   <a className="text-sm font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Evidence</a>
                 </div>
               </article>
@@ -85,6 +85,15 @@ export function DashboardClient() {
         </Card>
       </div>
     </AppShell>
+  );
+}
+
+function TimestampBlock({ value }: { value: string | Date }) {
+  return (
+    <div className="grid gap-0.5 text-left md:text-right">
+      <span className="font-bold text-brand-dark">{formatReadableDate(value)}</span>
+      <span className="text-sm font-semibold text-slate-500">{formatReadableTime(value)}</span>
+    </div>
   );
 }
 
