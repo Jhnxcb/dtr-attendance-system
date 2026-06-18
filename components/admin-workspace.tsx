@@ -437,10 +437,10 @@ function LatestRecords({ records }: { records: AttendanceRecord[] }) {
               <strong className="block text-brand-dark">{record.employee_name}</strong>
               <span className="text-sm font-bold text-slate-500">{record.employee_id}</span>
               <p className="text-sm text-slate-600">{record.branch} - {record.address}</p>
-              <TimestampBlock value={record.timestamp} />
+              <TimestampBlock value={record.timestamp} fallbackDate={record.date} fallbackTime={record.time} />
             </div>
             <div className="grid justify-items-start gap-2 md:justify-items-end">
-              <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black">{record.attendance_type}</span>
+              <AttendanceBadge type={record.attendance_type} />
               <a className="text-sm font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Evidence</a>
             </div>
           </article>
@@ -462,9 +462,9 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
           <tbody>
             {records.map((record) => (
               <tr key={record.id} className="border-b">
-                <td className="p-3"><TimestampBlock value={record.timestamp} /></td>
+                <td className="p-3"><TimestampBlock value={record.timestamp} fallbackDate={record.date} fallbackTime={record.time} /></td>
                 <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
-                <td className="p-3">{record.attendance_type}</td>
+                <td className="p-3"><AttendanceBadge type={record.attendance_type} /></td>
                 <td className="p-3">{record.branch}</td>
                 <td className="p-3">{record.address}</td>
                 <td className="p-3"><a className="font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Open</a></td>
@@ -477,11 +477,25 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
   );
 }
 
-function TimestampBlock({ value }: { value: string | Date }) {
+function AttendanceBadge({ type }: { type: AttendanceType }) {
+  return (
+    <span className={cn(
+      "rounded-full px-3 py-1 text-xs font-black",
+      type === "TIME OUT" ? "bg-red-100 text-red-700" : "bg-brand-lime text-brand-dark"
+    )}>
+      {type}
+    </span>
+  );
+}
+
+function TimestampBlock({ value, fallbackDate, fallbackTime }: { value: string | Date; fallbackDate?: string; fallbackTime?: string }) {
+  const readableDate = formatReadableDate(value) || fallbackDate || "No date";
+  const readableTime = formatReadableTime(value) || fallbackTime || "";
+
   return (
     <div className="grid gap-0.5">
-      <span className="font-bold text-brand-dark">{formatReadableDate(value)}</span>
-      <span className="text-sm font-semibold text-slate-500">{formatReadableTime(value)}</span>
+      <span className="font-bold text-brand-dark">{readableDate}</span>
+      {readableTime ? <span className="text-sm font-semibold text-slate-500">{readableTime}</span> : null}
     </div>
   );
 }

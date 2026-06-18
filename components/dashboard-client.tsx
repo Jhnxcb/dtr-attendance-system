@@ -5,8 +5,8 @@ import { Activity, Building2, Clock, LogIn, LogOut, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { formatReadableDate, formatReadableTime, isSameLocalDate } from "@/lib/utils";
-import type { AttendanceRecord } from "@/lib/types";
+import { cn, formatReadableDate, formatReadableTime, isSameLocalDate } from "@/lib/utils";
+import type { AttendanceRecord, AttendanceType } from "@/lib/types";
 
 export function DashboardClient() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
@@ -75,8 +75,8 @@ export function DashboardClient() {
                   <p className="text-xs text-slate-500">{record.verification_id}</p>
                 </div>
                 <div className="grid justify-items-start gap-2 md:justify-items-end">
-                  <span className="rounded-full bg-brand-lime px-3 py-1 text-xs font-black">{record.attendance_type}</span>
-                  <TimestampBlock value={record.timestamp} />
+                  <AttendanceBadge type={record.attendance_type} />
+                  <TimestampBlock value={record.timestamp} fallbackDate={record.date} fallbackTime={record.time} />
                   <a className="text-sm font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Evidence</a>
                 </div>
               </article>
@@ -88,11 +88,25 @@ export function DashboardClient() {
   );
 }
 
-function TimestampBlock({ value }: { value: string | Date }) {
+function AttendanceBadge({ type }: { type: AttendanceType }) {
+  return (
+    <span className={cn(
+      "rounded-full px-3 py-1 text-xs font-black",
+      type === "TIME OUT" ? "bg-red-100 text-red-700" : "bg-brand-lime text-brand-dark"
+    )}>
+      {type}
+    </span>
+  );
+}
+
+function TimestampBlock({ value, fallbackDate, fallbackTime }: { value: string | Date; fallbackDate?: string; fallbackTime?: string }) {
+  const readableDate = formatReadableDate(value) || fallbackDate || "No date";
+  const readableTime = formatReadableTime(value) || fallbackTime || "";
+
   return (
     <div className="grid gap-0.5 text-left md:text-right">
-      <span className="font-bold text-brand-dark">{formatReadableDate(value)}</span>
-      <span className="text-sm font-semibold text-slate-500">{formatReadableTime(value)}</span>
+      <span className="font-bold text-brand-dark">{readableDate}</span>
+      {readableTime ? <span className="text-sm font-semibold text-slate-500">{readableTime}</span> : null}
     </div>
   );
 }
