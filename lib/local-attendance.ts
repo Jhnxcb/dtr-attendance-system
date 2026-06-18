@@ -166,6 +166,189 @@ export function exportLocalAttendanceExcel(records: Array<AttendanceRecord | Loc
   downloadBlob(html, `${fileNamePrefix}-${new Date().toISOString().slice(0, 10)}.xls`, "application/vnd.ms-excel");
 }
 
+export function exportStaffAttendanceExcel(records: Array<AttendanceRecord | LocalAttendanceRecord>) {
+  const grouped = groupRecordsByEmployee(records);
+  const sheets = Array.from(grouped.entries())
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([employeeId, employeeRecords]) => {
+      const employeeName = employeeRecords[0]?.employee_name || employeeId;
+      const sessions = buildAttendanceSessions(employeeRecords);
+      const totalHours = sessions.reduce((sum, session) => sum + session.hours, 0);
+      const rows = [
+        row([titleCell(`${employeeName} (${employeeId})`, 10)]),
+        row([
+          headerCell("Date"),
+          headerCell("Time In"),
+          headerCell("Time Out"),
+          headerCell("Hours Worked"),
+          headerCell("Branch"),
+          headerCell("Location"),
+          headerCell("Time In Evidence"),
+          headerCell("Time Out Evidence"),
+          headerCell("Time In ID"),
+          headerCell("Time Out ID")
+        ]),
+        ...sessions.map((session) => row([
+          textCell(session.date),
+          textCell(session.timeIn),
+          textCell(session.timeOut),
+          numberCell(session.hours),
+          textCell(session.branch),
+          textCell(session.location),
+          linkCell(session.timeInEvidence),
+          linkCell(session.timeOutEvidence),
+          textCell(session.timeInId),
+          textCell(session.timeOutId)
+        ])),
+        row([
+          totalCell("TOTAL HOURS"),
+          emptyCell(),
+          emptyCell(),
+          totalNumberCell(totalHours),
+          emptyCell(),
+          emptyCell(),
+          emptyCell(),
+          emptyCell(),
+          emptyCell(),
+          emptyCell()
+        ])
+      ].join("");
+
+      return worksheetXml(getUniqueSheetName(employeeName, employeeId), rows);
+    });
+
+  const workbook = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Title"><Font ss:Bold="1" ss:Size="14" ss:Color="#1C5112" /></Style>
+    <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF" /><Interior ss:Color="#1C5112" ss:Pattern="Solid" /></Style>
+    <Style ss:ID="Total"><Font ss:Bold="1" /><Interior ss:Color="#F6E27F" ss:Pattern="Solid" /></Style>
+    <Style ss:ID="Number"><NumberFormat ss:Format="0.00" /></Style>
+    <Style ss:ID="Link"><Font ss:Color="#1155CC" ss:Underline="Single" /></Style>
+  </Styles>
+  ${sheets.join("")}
+</Workbook>`;
+
+  downloadBlob(workbook, `dtr-staff-attendance-${new Date().toISOString().slice(0, 10)}.xls`, "application/vnd.ms-excel");
+}
+
+type AttendanceSession = {
+  date: string;
+  timeIn: string;
+  timeOut: string;
+  hours: number;
+  branch: string;
+  location: string;
+  timeInEvidence: string;
+  timeOutEvidence: string;
+  timeInId: string;
+  timeOutId: string;
+};
+
+function groupRecordsByEmployee(records: Array<AttendanceRecord | LocalAttendanceRecord>) {
+  return records.reduce((groups, record) => {
+    const employeeId = record.employee_id || "UNKNOWN";
+    groups.set(employeeId, [...(groups.get(employeeId) || []), record]);
+    return groups;
+  }, new Map<string, Array<AttendanceRecord | LocalAttendanceRecord>>());
+}
+
+function buildAttendanceSessions(records: Array<AttendanceRecord | LocalAttendanceRecord>) {
+  const sorted = [...records].sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
+  const sessions: AttendanceSession[] = [];
+  let openTimeIn: AttendanceRecord | LocalAttendanceRecord | null = null;
+
+  for (const record of sorted) {
+    if (record.attendance_type === "TIME IN") {
+      if (openTimeIn) {
+        sessions.push(createSession(openTimeIn, null));
+      }
+      openTimeIn = record;
+      continue;
+    }
+
+    sessions.push(createSession(openTimeIn, record));
+    openTimeIn = null;
+  }
+
+  if (openTimeIn) {
+    sessions.push(createSession(openTimeIn, null));
+  }
+
+  return sessions;
+}
+
+function createSession(timeIn: AttendanceRecord | LocalAttendanceRecord | null, timeOut: AttendanceRecord | LocalAttendanceRecord | null): AttendanceSession {
+  const mainRecord = timeOut || timeIn;
+  const hours = timeIn && timeOut
+    ? Math.max(0, (new Date(timeOut.timestamp).getTime() - new Date(timeIn.timestamp).getTime()) / 3_600_000)
+    : 0;
+
+  return {
+    date: mainRecord?.date || "",
+    timeIn: timeIn ? formatReadableDateTime(timeIn.timestamp) : "Missing TIME IN",
+    timeOut: timeOut ? formatReadableDateTime(timeOut.timestamp) : "Missing TIME OUT",
+    hours: Number(hours.toFixed(2)),
+    branch: mainRecord?.branch || "",
+    location: mainRecord?.address || "",
+    timeInEvidence: timeIn?.verification_photo_url || "",
+    timeOutEvidence: timeOut?.verification_photo_url || "",
+    timeInId: timeIn?.verification_id || "",
+    timeOutId: timeOut?.verification_id || ""
+  };
+}
+
+function worksheetXml(name: string, rows: string) {
+  return `<Worksheet ss:Name="${escapeXmlAttribute(name)}"><Table>${rows}</Table></Worksheet>`;
+}
+
+function row(cells: string[]) {
+  return `<Row>${cells.join("")}</Row>`;
+}
+
+function textCell(value: string) {
+  return `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function numberCell(value: number) {
+  return `<Cell ss:StyleID="Number"><Data ss:Type="Number">${value.toFixed(2)}</Data></Cell>`;
+}
+
+function headerCell(value: string) {
+  return `<Cell ss:StyleID="Header"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function titleCell(value: string, mergeAcross: number) {
+  return `<Cell ss:StyleID="Title" ss:MergeAcross="${mergeAcross - 1}"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function totalCell(value: string) {
+  return `<Cell ss:StyleID="Total"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function totalNumberCell(value: number) {
+  return `<Cell ss:StyleID="Total"><Data ss:Type="Number">${value.toFixed(2)}</Data></Cell>`;
+}
+
+function emptyCell() {
+  return "<Cell><Data ss:Type=\"String\"></Data></Cell>";
+}
+
+function linkCell(url: string) {
+  if (!url) return emptyCell();
+  const formula = `=HYPERLINK(&quot;${escapeXmlAttribute(url)}&quot;,&quot;Open Photo&quot;)`;
+  return `<Cell ss:StyleID="Link" ss:Formula="${formula}"><Data ss:Type="String">Open Photo</Data></Cell>`;
+}
+
+function getUniqueSheetName(employeeName: string, employeeId: string) {
+  const base = `${employeeName || "Employee"} ${employeeId}`.replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim();
+  return (base || "Employee").slice(0, 31);
+}
+
 function upsertLocalRecord(record: LocalAttendanceRecord) {
   const existing = getLocalAttendanceRecords().filter((item) => item.local_id !== record.local_id && item.id !== record.id);
   writeJson(LOCAL_RECORDS_KEY, [record, ...existing].slice(0, 1000));
@@ -229,6 +412,14 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function escapeXml(value: string) {
+  return escapeHtml(value).replaceAll("'", "&apos;");
+}
+
+function escapeXmlAttribute(value: string) {
+  return escapeXml(value);
 }
 
 function downloadBlob(content: string, fileName: string, type: string) {

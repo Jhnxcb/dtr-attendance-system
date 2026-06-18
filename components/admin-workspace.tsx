@@ -7,7 +7,7 @@ import { Activity, Camera, Download, FileSpreadsheet, QrCode, Settings, Trash2, 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
-import { exportLocalAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
+import { exportLocalAttendanceExcel, exportStaffAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
 import { cn, formatReadableDateTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
@@ -292,13 +292,14 @@ export function AdminWorkspace() {
               </div>
             </Card>
             <Card>
-              <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
                 <div>
                   <strong className="block text-brand-dark">Local backup on this device</strong>
                   <span className="text-sm text-slate-500">{localRecords.length} local records, {pendingLocalCount} waiting for online backup.</span>
                 </div>
                 <Button type="button" variant="outline" onClick={backupLocalRecords}>Backup Now</Button>
                 <Button type="button" onClick={() => exportLocalAttendanceExcel(combinedRecords)}><Download size={16} /> Download Excel</Button>
+                <Button type="button" onClick={() => exportStaffAttendanceExcel(combinedRecords)}><Download size={16} /> Staff Excel</Button>
               </div>
             </Card>
             <ReportsTable records={combinedRecords} />
@@ -312,7 +313,9 @@ export function AdminWorkspace() {
               <div className="grid gap-2">
                 <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://supabase.com/dashboard" target="_blank">Supabase Dashboard</a>
                 <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://docs.google.com/spreadsheets/d/1HeiszUveI053AbDdOwnU620sIbLZICR76xYKwzUIn-4/edit" target="_blank">Google Sheet</a>
-                <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://vercel.com/gokidzasia/dtr-t67a" target="_blank">Vercel Project</a>
+                <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://vercel.com/john-jacob-tamon-s-projects/dtr-attendance-system" target="_blank">Vercel Project</a>
+                <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://github.com/Jhnxcb/dtr-attendance-system" target="_blank">GitHub Repository</a>
+                <a className="rounded-ui border p-3 font-bold text-brand-hill" href="https://dtr-attendance-system.vercel.app" target="_blank">Live App</a>
               </div>
             </Card>
             <Card>
