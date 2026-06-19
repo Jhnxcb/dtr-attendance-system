@@ -64,12 +64,10 @@ function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: Overlay
   const panelH = 330;
 
   ctx.fillStyle = "rgba(10, 12, 14, 0.82)";
+  ctx.fillRect(panelX, panelY, panelW, panelH);
   ctx.strokeStyle = "#FCEFA2";
   ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.roundRect(panelX, panelY, panelW, panelH, 14);
-  ctx.fill();
-  ctx.stroke();
+  ctx.strokeRect(panelX, panelY, panelW, panelH);
 
   ctx.fillStyle = input.attendanceType === "TIME OUT" ? "#F87171" : "#FFBF60";
   ctx.font = "700 23pt Fredoka";
