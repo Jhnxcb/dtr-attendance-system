@@ -9,6 +9,19 @@ type EmailAttendanceRecord = AttendanceRecord & {
   time_in_date?: string;
 };
 
+type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType: string;
+};
+
+type BuiltEmail = {
+  subject: string;
+  html: string;
+  text: string;
+  attachments?: EmailAttachment[];
+};
+
 export async function sendAttendanceEmail(record: EmailAttendanceRecord) {
   if (process.env.EMAIL_NOTIFICATIONS_ENABLED === "false") return;
   if (!record.email) return;
@@ -92,18 +105,22 @@ function buildAttendanceEmail(record: EmailAttendanceRecord) {
   };
 }
 
-async function sendWithResend(to: string, email: { subject: string; html: string; text: string }) {
+async function sendWithResend(to: string, email: BuiltEmail) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL || "DTR <noreply@example.com>",
     to,
     subject: email.subject,
     html: email.html,
-    text: email.text
+    text: email.text,
+    attachments: email.attachments?.map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content
+    }))
   });
 }
 
-async function sendEmail(to: string, email: { subject: string; html: string; text: string }) {
+async function sendEmail(to: string, email: BuiltEmail) {
   const provider = process.env.EMAIL_PROVIDER || "resend";
 
   if (provider === "google_apps_script") {
@@ -115,7 +132,7 @@ async function sendEmail(to: string, email: { subject: string; html: string; tex
   await sendWithResend(to, email);
 }
 
-async function sendWithGoogleAppsScript(to: string, email: { subject: string; html: string; text: string }) {
+async function sendWithGoogleAppsScript(to: string, email: BuiltEmail) {
   const url = process.env.GOOGLE_APPS_SCRIPT_EMAIL_URL;
   if (!url) return;
 
@@ -128,6 +145,7 @@ async function sendWithGoogleAppsScript(to: string, email: { subject: string; ht
       subject: email.subject,
       html: email.html,
       text: email.text,
+      attachments: email.attachments || [],
       token: process.env.GOOGLE_APPS_SCRIPT_EMAIL_TOKEN || ""
     })
   });
@@ -154,6 +172,7 @@ function buildMonthlyAttendanceSummaryEmail(input: {
   totalHours: number;
 }) {
   const logoUrl = getLogoUrl();
+  const attachment = buildMonthlyExcelAttachment(input);
   const rows = input.sessions.length
     ? input.sessions.map((session) => `
       <tr>
@@ -198,7 +217,8 @@ function buildMonthlyAttendanceSummaryEmail(input: {
       `Total Hours: ${input.totalHours.toFixed(2)}`,
       "",
       ...input.sessions.map((session) => `${session.date} | ${session.timeIn} | ${session.timeOut} | ${session.hours.toFixed(2)} hrs | ${session.branch} | ${session.location}`)
-    ].join("\n")
+    ].join("\n"),
+    attachments: [attachment]
   };
 }
 
@@ -215,4 +235,123 @@ function getLogoUrl() {
   ).trim();
   const normalizedAppUrl = appUrl.startsWith("http") ? appUrl : `https://${appUrl}`;
   return `${normalizedAppUrl.replace(/\/$/, "")}/logo.png`;
+}
+
+function buildMonthlyExcelAttachment(input: {
+  employeeName: string;
+  employeeId: string;
+  monthLabel: string;
+  sessions: AttendanceSession[];
+  totalHours: number;
+}): EmailAttachment {
+  const rows = [
+    row([titleCell(`${input.employeeName} (${input.employeeId}) - ${input.monthLabel}`, 9)]),
+    row([
+      headerCell("Date"),
+      headerCell("Time In"),
+      headerCell("Time Out"),
+      headerCell("Hours Worked"),
+      headerCell("Branch"),
+      headerCell("Location"),
+      headerCell("Time In Evidence"),
+      headerCell("Time Out Evidence"),
+      headerCell("Time In ID"),
+      headerCell("Time Out ID")
+    ]),
+    ...input.sessions.map((session) => row([
+      textCell(session.date),
+      textCell(session.timeIn),
+      textCell(session.timeOut),
+      numberCell(session.hours),
+      textCell(session.branch),
+      textCell(session.location),
+      linkCell(session.timeInEvidence),
+      linkCell(session.timeOutEvidence),
+      textCell(session.timeInId),
+      textCell(session.timeOutId)
+    ])),
+    row([
+      totalCell("TOTAL HOURS"),
+      emptyCell(),
+      emptyCell(),
+      totalNumberCell(input.totalHours),
+      emptyCell(),
+      emptyCell(),
+      emptyCell(),
+      emptyCell(),
+      emptyCell(),
+      emptyCell()
+    ])
+  ].join("");
+
+  const workbook = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Title"><Font ss:Bold="1" ss:Size="14" ss:Color="#1C5112" /></Style>
+    <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF" /><Interior ss:Color="#1C5112" ss:Pattern="Solid" /></Style>
+    <Style ss:ID="Total"><Font ss:Bold="1" /><Interior ss:Color="#F6E27F" ss:Pattern="Solid" /></Style>
+    <Style ss:ID="Number"><NumberFormat ss:Format="0.00" /></Style>
+    <Style ss:ID="Link"><Font ss:Color="#1155CC" ss:Underline="Single" /></Style>
+  </Styles>
+  <Worksheet ss:Name="Attendance"><Table>${rows}</Table></Worksheet>
+</Workbook>`;
+
+  const safeMonth = input.monthLabel.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+  const safeEmployee = input.employeeId.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+
+  return {
+    filename: `attendance-${safeEmployee}-${safeMonth}.xls`,
+    contentType: "application/vnd.ms-excel",
+    content: Buffer.from(workbook, "utf8").toString("base64")
+  };
+}
+
+function row(cells: string[]) {
+  return `<Row>${cells.join("")}</Row>`;
+}
+
+function textCell(value: string) {
+  return `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function numberCell(value: number) {
+  return `<Cell ss:StyleID="Number"><Data ss:Type="Number">${value.toFixed(2)}</Data></Cell>`;
+}
+
+function headerCell(value: string) {
+  return `<Cell ss:StyleID="Header"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function titleCell(value: string, mergeAcross: number) {
+  return `<Cell ss:StyleID="Title" ss:MergeAcross="${mergeAcross}"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function totalCell(value: string) {
+  return `<Cell ss:StyleID="Total"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function totalNumberCell(value: number) {
+  return `<Cell ss:StyleID="Total"><Data ss:Type="Number">${value.toFixed(2)}</Data></Cell>`;
+}
+
+function emptyCell() {
+  return "<Cell><Data ss:Type=\"String\"></Data></Cell>";
+}
+
+function linkCell(url: string) {
+  if (!url) return emptyCell();
+  const formula = `=HYPERLINK(&quot;${escapeXmlAttribute(url)}&quot;,&quot;Open Photo&quot;)`;
+  return `<Cell ss:StyleID="Link" ss:Formula="${formula}"><Data ss:Type="String">Open Photo</Data></Cell>`;
+}
+
+function escapeXml(value: string) {
+  return escapeHtml(value);
+}
+
+function escapeXmlAttribute(value: string) {
+  return escapeAttribute(value);
 }

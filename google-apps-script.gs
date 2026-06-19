@@ -80,12 +80,23 @@ function sendAttendanceEmail_(payload) {
 
   GmailApp.sendEmail(payload.to, payload.subject, payload.text || "", {
     htmlBody: payload.html,
-    name: "DTR Attendance"
+    name: "DTR Attendance",
+    attachments: buildEmailAttachments_(payload.attachments || [])
   });
 
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function buildEmailAttachments_(attachments) {
+  return attachments.map(function (attachment) {
+    return Utilities.newBlob(
+      Utilities.base64Decode(attachment.content || ""),
+      attachment.contentType || "application/octet-stream",
+      attachment.filename || "attachment"
+    );
+  });
 }
 
 function testEmailSetup() {
