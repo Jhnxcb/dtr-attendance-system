@@ -4,6 +4,7 @@ import { dataUrlToBuffer, createVerificationImage } from "@/lib/photo";
 import { formatAttendanceDate, formatReadableTime, generateVerificationId, getLocalDateKey, isSameLocalDate } from "@/lib/utils";
 import { sendAttendanceEmail } from "@/lib/email";
 import { syncAttendanceToSheets } from "@/lib/google-sheets";
+import { reverseGeocodeToPlace } from "@/lib/location";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
 
 interface AttendanceRequest {
@@ -66,8 +67,8 @@ export async function POST(request: Request) {
     const date = formatAttendanceDate(timestamp);
     const time = formatReadableTime(timestamp);
     const verificationId = generateVerificationId(timestamp, Math.floor(Math.random() * 9999) + 1);
-    const address = await reverseGeocode(body.latitude, body.longitude);
     const branchName = body.branch || employee.branches?.name || "Unassigned branch";
+    const address = await reverseGeocodeToPlace(body.latitude, body.longitude, branchName);
     const originalPhoto = dataUrlToBuffer(body.photoDataUrl);
 
     const verificationPhoto = await createVerificationImage({
@@ -197,22 +198,6 @@ function parseEmployeeCode(code: string) {
     return { employeeId: parsed.employeeId || parsed.staffId || parsed.id || code };
   } catch {
     return { employeeId: code.trim() };
-  }
-}
-
-async function reverseGeocode(latitude: number, longitude: number) {
-  if (process.env.REVERSE_GEOCODING_ENABLED === "false") {
-    return `${latitude}, ${longitude}`;
-  }
-
-  try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
-      headers: { "User-Agent": "DTR Attendance System" }
-    });
-    const payload = await response.json();
-    return payload.display_name || `${latitude}, ${longitude}`;
-  } catch {
-    return `${latitude}, ${longitude}`;
   }
 }
 

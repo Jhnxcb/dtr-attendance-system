@@ -1,7 +1,7 @@
 "use client";
 
 import type { AttendanceRecord, AttendanceType } from "@/lib/types";
-import { formatDeviceInfo, formatReadableDateTime, generateVerificationId } from "@/lib/utils";
+import { formatDeviceInfo, formatLocationName, formatReadableDateTime, generateVerificationId } from "@/lib/utils";
 
 const LOCAL_RECORDS_KEY = "dtr.localAttendanceRecords";
 const PENDING_SCANS_KEY = "dtr.pendingAttendanceScans";
@@ -80,7 +80,7 @@ export function queueLocalAttendanceScan(input: AttendanceSubmitPayload, errorMe
     branch: input.branch || "Pending branch",
     latitude: input.latitude,
     longitude: input.longitude,
-    address: `${input.latitude}, ${input.longitude}`,
+    address: input.branch || "Pending online location",
     device: pending.device,
     profile_photo_url: null,
     original_photo_url: "",
@@ -152,7 +152,7 @@ export function exportLocalAttendanceExcel(records: Array<AttendanceRecord | Loc
       record.email || "",
       record.attendance_type,
       record.branch,
-      record.address,
+      formatLocationName(record.address, record.branch),
       record.latitude,
       record.longitude,
       record.verification_id,
@@ -166,8 +166,12 @@ export function exportLocalAttendanceExcel(records: Array<AttendanceRecord | Loc
   downloadBlob(html, `${fileNamePrefix}-${new Date().toISOString().slice(0, 10)}.xls`, "application/vnd.ms-excel");
 }
 
-export function exportStaffAttendanceExcel(records: Array<AttendanceRecord | LocalAttendanceRecord>) {
-  const grouped = groupRecordsByEmployee(records);
+export function exportStaffAttendanceExcel(records: Array<AttendanceRecord | LocalAttendanceRecord>, activeEmployeeIds?: string[]) {
+  const activeEmployeeIdSet = activeEmployeeIds?.length ? new Set(activeEmployeeIds) : null;
+  const staffRecords = activeEmployeeIdSet
+    ? records.filter((record) => activeEmployeeIdSet.has(record.employee_id))
+    : records;
+  const grouped = groupRecordsByEmployee(staffRecords);
   const sheets = Array.from(grouped.entries())
     .sort((left, right) => left[0].localeCompare(right[0]))
     .map(([employeeId, employeeRecords]) => {
@@ -294,7 +298,7 @@ function createSession(timeIn: AttendanceRecord | LocalAttendanceRecord | null, 
     timeOut: timeOut ? formatReadableDateTime(timeOut.timestamp) : "Missing TIME OUT",
     hours: Number(hours.toFixed(2)),
     branch: mainRecord?.branch || "",
-    location: mainRecord?.address || "",
+    location: formatLocationName(mainRecord?.address, mainRecord?.branch),
     timeInEvidence: timeIn?.verification_photo_url || "",
     timeOutEvidence: timeOut?.verification_photo_url || "",
     timeInId: timeIn?.verification_id || "",

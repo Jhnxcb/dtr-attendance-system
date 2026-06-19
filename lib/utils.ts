@@ -95,3 +95,15 @@ export function getLocalDateKey(value: string | Date) {
   const day = parts.find((part) => part.type === "day")?.value || "00";
   return `${year}-${month}-${day}`;
 }
+
+export function formatLocationName(address: string | null | undefined, branch?: string | null) {
+  const value = String(address || "").trim();
+  const branchName = String(branch || "").trim();
+  if (!value) return branchName || "Unknown location";
+
+  if (/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(value)) {
+    return branchName && branchName !== "Unassigned branch" ? branchName : "Unknown location";
+  }
+
+  return value;
+}

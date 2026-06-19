@@ -5,7 +5,7 @@ import { Activity, Building2, Clock, LogIn, LogOut, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { cn, formatReadableDate, formatReadableTime, isSameLocalDate } from "@/lib/utils";
+import { cn, formatLocationName, formatReadableDate, formatReadableTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType } from "@/lib/types";
 
 export function DashboardClient() {
@@ -71,7 +71,7 @@ export function DashboardClient() {
                 <div>
                   <strong className="block text-brand-dark">{record.employee_name}</strong>
                   <span className="text-sm font-bold text-slate-500">{record.employee_id}</span>
-                  <p className="text-sm text-slate-600">{record.branch} - {record.address}</p>
+                  <p className="text-sm text-slate-600">{record.branch} - {formatLocationName(record.address, record.branch)}</p>
                   <p className="text-xs text-slate-500">{record.verification_id}</p>
                 </div>
                 <div className="grid justify-items-start gap-2 md:justify-items-end">

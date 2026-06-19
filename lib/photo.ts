@@ -90,7 +90,6 @@ function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: Overlay
     ["Date", input.date],
     ["Time", input.time],
     ["Branch", input.branch],
-    ["GPS", `${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}`],
     ["Location", input.address],
     ["Employee ID", input.employeeId],
     ["Verification", input.verificationId]

@@ -1,8 +1,6 @@
 # Cloud-Based DTR Attendance Management System
 
-Production-ready starter for a cloud DTR Attendance Management System using Next.js 15, TypeScript, Tailwind, Supabase, Supabase Storage, Supabase Realtime, Google Sheets, Resend, GPS, and Vercel.
-
-The previous static prototype files are still present, but the production app now lives in the Next.js `app/`, `components/`, `lib/`, and `supabase/` folders.
+Production-ready cloud DTR Attendance Management System using Next.js, TypeScript, Tailwind, Supabase, Supabase Storage, Google Sheets, Resend or Google Apps Script email, GPS, and Vercel.
 
 ## Main Features
 
@@ -11,10 +9,12 @@ The previous static prototype files are still present, but the production app no
 - Camera evidence capture required
 - GPS capture required
 - Original photo and stamped verification photo stored in Supabase Storage
-- Verification overlay with employee, timestamp, GPS, address, branch, and verification ID
+- Verification overlay with employee, timestamp, branch/site, GPS proof, and verification ID
 - Supabase PostgreSQL as source of truth
 - Google Sheets sync for reporting
 - Resend attendance confirmation emails
+- Monthly staff attendance summary email archive
+- Monthly employee sheet reset with archived monthly Google Sheets tabs
 - Realtime dashboard using Supabase Realtime
 - Employee management with profile photos
 - Reports with CSV export
@@ -63,34 +63,43 @@ GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_PRIVATE_KEY=
 ```
 
-9. Create a Resend API key and add:
+9. Create a Resend API key or configure Google Apps Script email and add:
 
 ```text
 RESEND_API_KEY=
 RESEND_FROM_EMAIL="DTR <noreply@example.com>"
+EMAIL_PROVIDER=resend
 ```
 
-10. Start the app:
+10. Add a cron secret for the monthly staff email archive:
+
+```text
+CRON_SECRET=
+```
+
+Vercel calls `/api/monthly-attendance-email` after the month completes. The app records sent monthly summaries in `monthly_email_archives` so staff are not emailed twice for the same month.
+
+11. Start the app:
 
 ```powershell
 npm run dev
 ```
 
-11. Open:
+12. Open:
 
 ```text
 http://localhost:3000
 ```
 
-12. Sign in using Supabase Auth.
+13. Sign in using Supabase Auth.
 
-13. Go to Employees and add staff with profile photos.
+14. Go to Employees and add staff with profile photos.
 
-14. Generate employee QR codes using the employee ID.
+15. Generate employee QR codes using the employee ID.
 
-15. Scan attendance from the Scanner page.
+16. Scan attendance from the Scanner page.
 
-16. View live records in Dashboard and Reports.
+17. View live records in Dashboard and Reports.
 
 ## Pages
 
@@ -110,6 +119,8 @@ The app creates/syncs:
 - `ATTENDANCE_EVIDENCE`
 - monthly sheets like `2026_JUNE`
 - employee sheets like `EMP_JOHN_JACOB_TAMON`
+- archived employee sheets like `ARCHIVE_2026_06_EMP_JOHN_JACOB_TAMON`
+- `SYSTEM_LOGS` for monthly employee sheet reset tracking
 
 ## Required Attendance Evidence
 

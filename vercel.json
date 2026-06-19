@@ -1,5 +1,11 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install --include=optional"
+  "installCommand": "npm install --include=optional",
+  "crons": [
+    {
+      "path": "/api/monthly-attendance-email",
+      "schedule": "0 16 28-31 * *"
+    }
+  ]
 }

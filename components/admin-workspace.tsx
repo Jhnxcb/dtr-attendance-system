@@ -10,7 +10,7 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { exportLocalAttendanceExcel, exportStaffAttendanceExcel, getLocalAttendanceRecords, getPendingAttendanceScans, syncPendingAttendanceScans, type LocalAttendanceRecord } from "@/lib/local-attendance";
 import { departments, workforceRoles } from "@/lib/organization-options";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { cn, formatReadableDate, formatReadableDateTime, formatReadableTime, isSameLocalDate } from "@/lib/utils";
+import { cn, formatLocationName, formatReadableDate, formatReadableDateTime, formatReadableTime, isSameLocalDate } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType, Employee } from "@/lib/types";
 
 type AdminTab = "overview" | "staff" | "qr" | "reports" | "settings";
@@ -181,7 +181,7 @@ export function AdminWorkspace() {
 
   function exportCsv() {
     const headers = ["Timestamp", "Date", "Time", "Employee ID", "Name", "Email", "Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo", "Verification Photo"];
-    const csv = [headers, ...combinedRecords.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
+    const csv = [headers, ...combinedRecords.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, formatLocationName(record.address, record.branch), record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
       .map((row) => row.map((cell) => `"${String(cell || "").replaceAll('"', '""')}"`).join(","))
       .join("\n");
     const link = document.createElement("a");
@@ -329,7 +329,7 @@ export function AdminWorkspace() {
                 </div>
                 <Button type="button" variant="outline" onClick={backupLocalRecords}>Backup Now</Button>
                 <Button type="button" onClick={() => exportLocalAttendanceExcel(combinedRecords)}><Download size={16} /> Download Excel</Button>
-                <Button type="button" onClick={() => exportStaffAttendanceExcel(combinedRecords)}><Download size={16} /> Staff Excel</Button>
+                <Button type="button" onClick={() => exportStaffAttendanceExcel(combinedRecords, employees.map((employee) => employee.employee_id))}><Download size={16} /> Staff Excel</Button>
               </div>
             </Card>
             <ReportsTable records={combinedRecords} />
@@ -436,7 +436,7 @@ function LatestRecords({ records }: { records: AttendanceRecord[] }) {
             <div>
               <strong className="block text-brand-dark">{record.employee_name}</strong>
               <span className="text-sm font-bold text-slate-500">{record.employee_id}</span>
-              <p className="text-sm text-slate-600">{record.branch} - {record.address}</p>
+              <p className="text-sm text-slate-600">{record.branch} - {formatLocationName(record.address, record.branch)}</p>
               <TimestampBlock value={record.timestamp} fallbackDate={record.date} fallbackTime={record.time} />
             </div>
             <div className="grid justify-items-start gap-2 md:justify-items-end">
@@ -466,7 +466,7 @@ function ReportsTable({ records }: { records: AttendanceRecord[] }) {
                 <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                 <td className="p-3"><AttendanceBadge type={record.attendance_type} /></td>
                 <td className="p-3">{record.branch}</td>
-                <td className="p-3">{record.address}</td>
+                <td className="p-3">{formatLocationName(record.address, record.branch)}</td>
                 <td className="p-3"><a className="font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Open</a></td>
               </tr>
             ))}

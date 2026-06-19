@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { hasSupabaseBrowserConfig } from "@/lib/supabase-browser";
-import { cn, formatReadableDate, formatReadableDateTime, formatReadableTime } from "@/lib/utils";
+import { cn, formatLocationName, formatReadableDate, formatReadableDateTime, formatReadableTime } from "@/lib/utils";
 import type { AttendanceRecord, AttendanceType } from "@/lib/types";
 
 export function ReportsClient() {
@@ -29,7 +29,7 @@ export function ReportsClient() {
 
   function exportCsv() {
     const headers = ["Timestamp", "Date", "Time", "Employee ID", "Name", "Email", "Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo", "Verification Photo"];
-    const csv = [headers, ...filtered.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
+    const csv = [headers, ...filtered.map((record) => [formatReadableDateTime(record.timestamp), record.date, record.time, record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, formatLocationName(record.address, record.branch), record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url])]
       .map((row) => row.map((cell) => `"${String(cell || "").replaceAll('"', '""')}"`).join(","))
       .join("\n");
     const link = document.createElement("a");
@@ -74,7 +74,7 @@ export function ReportsClient() {
                     <td className="p-3">{record.employee_name}<br /><span className="text-slate-500">{record.employee_id}</span></td>
                     <td className="p-3"><AttendanceBadge type={record.attendance_type} /></td>
                     <td className="p-3">{record.branch}</td>
-                    <td className="p-3">{record.address}</td>
+                    <td className="p-3">{formatLocationName(record.address, record.branch)}</td>
                     <td className="p-3"><a className="font-bold text-brand-hill" href={record.verification_photo_url} target="_blank">Open</a></td>
                   </tr>
                 ))}

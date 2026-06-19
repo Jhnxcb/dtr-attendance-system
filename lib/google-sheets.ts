@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import type { AttendanceRecord, Employee } from "@/lib/types";
-import { formatReadableDateTime } from "@/lib/utils";
+import { formatLocationName, formatReadableDateTime } from "@/lib/utils";
 
 type SheetAttendanceRecord = AttendanceRecord & {
   hours_worked?: string;
@@ -9,6 +9,9 @@ type SheetAttendanceRecord = AttendanceRecord & {
   role?: string;
   department?: string;
 };
+
+const EMPLOYEE_ATTENDANCE_HEADERS = ["Date", "Time In", "Time Out", "Hours Worked", "Branch", "Location", "Status"];
+const SYSTEM_LOG_SHEET = "SYSTEM_LOGS";
 
 function getSheetsClient() {
   if (process.env.GOOGLE_SHEETS_SYNC_ENABLED === "false") {
@@ -145,15 +148,17 @@ export async function syncAttendanceToSheets(record: SheetAttendanceRecord) {
     const masterHeaders = ["Timestamp", "Date", "Month", "Employee ID", "Name", "Email", "Attendance Type", "Branch", "Location", "Latitude", "Longitude", "Verification ID", "Original Photo URL", "Verification Photo URL", "Hours Worked", "Role", "Department"];
     await ensureSheet("MASTER_ATTENDANCE", masterHeaders);
     const monthlySheet = await ensureSheet(monthlySheetRequest, masterHeaders);
-    const ensuredEmployeeSheet = await ensureSheet(employeeSheet, ["Date", "Time In", "Time Out", "Hours Worked", "Branch", "Location", "Status"]);
+    const ensuredEmployeeSheet = await ensureSheet(employeeSheet, EMPLOYEE_ATTENDANCE_HEADERS);
+    await prepareMonthlyEmployeeSheet(client, ensuredEmployeeSheet, getMonthKey(record.timestamp));
     await ensureSheet("ATTENDANCE_EVIDENCE", ["Timestamp", "Employee ID", "Employee Name", "Attendance Type", "Original Photo URL", "Verification Photo URL", "Location"]);
 
     const readableTimestamp = formatReadableDateTime(record.timestamp);
-    const masterRow = [readableTimestamp, record.date, toTitleCase(month), record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, record.address, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url, record.hours_worked || "", record.role || "", record.department || ""];
+    const locationName = formatLocationName(record.address, record.branch);
+    const masterRow = [readableTimestamp, record.date, toTitleCase(month), record.employee_id, record.employee_name, record.email, record.attendance_type, record.branch, locationName, record.latitude, record.longitude, record.verification_id, record.original_photo_url, record.verification_photo_url, record.hours_worked || "", record.role || "", record.department || ""];
     await append(client, "MASTER_ATTENDANCE", masterRow);
     await append(client, monthlySheet, masterRow);
     await upsertEmployeeAttendanceRow(client, ensuredEmployeeSheet, record);
-    await append(client, "ATTENDANCE_EVIDENCE", [readableTimestamp, record.employee_id, record.employee_name, record.attendance_type, record.original_photo_url, record.verification_photo_url, record.address]);
+    await append(client, "ATTENDANCE_EVIDENCE", [readableTimestamp, record.employee_id, record.employee_name, record.attendance_type, record.original_photo_url, record.verification_photo_url, locationName]);
   } catch (error) {
     return { warning: error instanceof Error ? error.message : "Google Sheets sync failed." };
   }
@@ -173,11 +178,86 @@ export async function syncEmployeeToSheets(employee: Employee) {
   if (!client) return;
   try {
     await ensureSheet("EMPLOYEES", ["Employee ID", "Name", "Email", "Position", "Department", "Branch", "Status"]);
-    await ensureSheet(`EMP_${employee.full_name.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}`, ["Date", "Time In", "Time Out", "Hours Worked", "Branch", "Location", "Status"]);
+    await ensureSheet(`EMP_${employee.full_name.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}`, EMPLOYEE_ATTENDANCE_HEADERS);
     await append(client, "EMPLOYEES", [employee.employee_id, employee.full_name, employee.email, employee.position, employee.department, employee.branch_name, employee.status]);
   } catch (error) {
     return { warning: error instanceof Error ? error.message : "Google Sheets sync failed." };
   }
+}
+
+async function prepareMonthlyEmployeeSheet(
+  client: NonNullable<ReturnType<typeof getSheetsClient>>,
+  sheet: string,
+  currentMonthKey: string
+) {
+  await ensureSheet(SYSTEM_LOG_SHEET, ["Key", "Value", "Updated At"]);
+  const logKey = `employee_sheet_month:${sheet}`;
+  const logsResponse = await client.sheets.spreadsheets.values.get({
+    spreadsheetId: client.spreadsheetId,
+    range: `${SYSTEM_LOG_SHEET}!A2:C`
+  });
+  const logs = logsResponse.data.values || [];
+  const logIndex = logs.findIndex((row) => String(row[0] || "") === logKey);
+  const previousMonthKey = logIndex >= 0 ? String(logs[logIndex][1] || "") : "";
+
+  if (!previousMonthKey || previousMonthKey === currentMonthKey) {
+    await upsertSystemLog(client, logKey, currentMonthKey, logIndex);
+    return;
+  }
+
+  const currentRowsResponse = await client.sheets.spreadsheets.values.get({
+    spreadsheetId: client.spreadsheetId,
+    range: `${sheet}!A2:G`
+  });
+  const currentRows = currentRowsResponse.data.values || [];
+
+  if (currentRows.length) {
+    const archiveSheet = await ensureSheet(createArchiveSheetName(previousMonthKey, sheet), EMPLOYEE_ATTENDANCE_HEADERS);
+    await client.sheets.spreadsheets.values.update({
+      spreadsheetId: client.spreadsheetId,
+      range: `${archiveSheet}!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [EMPLOYEE_ATTENDANCE_HEADERS, ...currentRows] }
+    });
+    await client.sheets.spreadsheets.values.clear({
+      spreadsheetId: client.spreadsheetId,
+      range: `${sheet}!A2:G`
+    });
+  }
+
+  await upsertSystemLog(client, logKey, currentMonthKey, logIndex);
+}
+
+async function upsertSystemLog(
+  client: NonNullable<ReturnType<typeof getSheetsClient>>,
+  key: string,
+  value: string,
+  existingIndex: number
+) {
+  const row = [key, value, new Date().toISOString()];
+  if (existingIndex >= 0) {
+    await client.sheets.spreadsheets.values.update({
+      spreadsheetId: client.spreadsheetId,
+      range: `${SYSTEM_LOG_SHEET}!A${existingIndex + 2}:C${existingIndex + 2}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [row] }
+    });
+    return;
+  }
+
+  await append(client, SYSTEM_LOG_SHEET, row);
+}
+
+function getMonthKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "UNKNOWN_MONTH";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}_${month}`;
+}
+
+function createArchiveSheetName(monthKey: string, employeeSheet: string) {
+  return `ARCHIVE_${monthKey}_${employeeSheet}`.slice(0, 99);
 }
 
 async function append(client: NonNullable<ReturnType<typeof getSheetsClient>>, sheet: string, row: unknown[]) {
@@ -195,7 +275,7 @@ async function upsertEmployeeAttendanceRow(
   record: SheetAttendanceRecord
 ) {
   if (record.attendance_type === "TIME IN") {
-    await append(client, sheet, [record.date, record.time, "", "", record.branch, record.address, "Open"]);
+    await append(client, sheet, [record.date, record.time, "", "", record.branch, formatLocationName(record.address, record.branch), "Open"]);
     return;
   }
 
@@ -207,7 +287,7 @@ async function upsertEmployeeAttendanceRow(
   const rowIndex = findOpenEmployeeRow(rows, record.time_in_date || record.date);
 
   if (rowIndex === -1) {
-    await append(client, sheet, [record.time_in_date || record.date, record.time_in || "", record.time, record.hours_worked || "", record.branch, record.address, record.time_in ? "Complete" : "Missing TIME IN"]);
+    await append(client, sheet, [record.time_in_date || record.date, record.time_in || "", record.time, record.hours_worked || "", record.branch, formatLocationName(record.address, record.branch), record.time_in ? "Complete" : "Missing TIME IN"]);
     return;
   }
 
@@ -216,7 +296,7 @@ async function upsertEmployeeAttendanceRow(
     range: `${sheet}!C${rowIndex + 2}:G${rowIndex + 2}`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [[record.time, record.hours_worked || "", record.branch, record.address, "Complete"]]
+      values: [[record.time, record.hours_worked || "", record.branch, formatLocationName(record.address, record.branch), "Complete"]]
     }
   });
 }
