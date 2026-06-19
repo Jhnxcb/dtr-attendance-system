@@ -58,10 +58,15 @@ function drawCoverImage(ctx: ReturnType<Bitmap["getContext"]>, source: Bitmap) {
 }
 
 function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: OverlayInput) {
-  const panelX = 70;
-  const panelY = 330;
-  const panelW = 760;
+  const panelX = 64;
+  const panelY = 342;
+  const panelW = 590;
   const panelH = 330;
+  const pad = 24;
+  const textX = panelX + pad;
+  const labelX = textX;
+  const valueX = panelX + 170;
+  const valueW = panelW - 195;
 
   ctx.fillStyle = "rgba(10, 12, 14, 0.82)";
   ctx.fillRect(panelX, panelY, panelW, panelH);
@@ -70,37 +75,57 @@ function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: Overlay
   ctx.strokeRect(panelX, panelY, panelW, panelH);
 
   ctx.fillStyle = input.attendanceType === "TIME OUT" ? "#F87171" : "#FFBF60";
-  ctx.font = "30px Fredoka";
-  ctx.fillText(input.attendanceType, panelX + 28, panelY + 48);
+  ctx.font = "24px Fredoka";
+  ctx.fillText(input.attendanceType, textX, panelY + 42);
 
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "32px Fredoka";
-  fitText(ctx, input.employeeName, panelX + 28, panelY + 88, 500);
+  ctx.font = "25px Fredoka";
+  fitText(ctx, input.employeeName, textX, panelY + 76, panelW - pad * 2);
 
   ctx.fillStyle = "#DDE9D4";
-  ctx.font = "20px Fredoka";
-  fitText(ctx, `${input.role || "Staff"}${input.department ? ` | ${input.department}` : ""}`, panelX + 28, panelY + 120, 500);
+  ctx.font = "16px Fredoka";
+  fitText(ctx, `${input.role || "Staff"}${input.department ? ` | ${input.department}` : ""}`, textX, panelY + 104, panelW - pad * 2);
 
   const rows = [
     ["Date", input.date],
     ["Time", input.time],
     ["Branch", input.branch],
-    ["GPS", `${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`],
+    ["GPS", `${input.latitude.toFixed(5)}, ${input.longitude.toFixed(5)}`],
     ["Location", input.address],
     ["Employee ID", input.employeeId],
     ["Verification", input.verificationId]
   ];
 
-  let y = panelY + 162;
+  let y = panelY + 146;
   for (const [label, value] of rows) {
-    ctx.fillStyle = "#FFBF60";
-    ctx.font = "15px Fredoka";
-    ctx.fillText(label.toUpperCase(), panelX + 30, y);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "18px Fredoka";
-    fitText(ctx, value, panelX + 172, y, panelW - 205);
-    y += 31;
+    y = drawInfoRow(ctx, label, value, labelX, valueX, y, valueW);
   }
+}
+
+function drawInfoRow(
+  ctx: ReturnType<Bitmap["getContext"]>,
+  label: string,
+  value: string,
+  labelX: number,
+  valueX: number,
+  y: number,
+  valueW: number
+) {
+  const lineHeight = 18;
+  ctx.font = "14px Fredoka";
+  const lines = wrapText(ctx, value, valueW, 2);
+
+  ctx.fillStyle = "#FFBF60";
+  ctx.font = "12px Fredoka";
+  ctx.fillText(label.toUpperCase(), labelX, y);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "14px Fredoka";
+  lines.forEach((line, index) => {
+    ctx.fillText(line, valueX, y + index * lineHeight);
+  });
+
+  return y + Math.max(lineHeight + 6, lines.length * lineHeight + 8);
 }
 
 function fitText(ctx: ReturnType<Bitmap["getContext"]>, value: string, x: number, y: number, maxWidth: number) {
@@ -114,6 +139,50 @@ function fitText(ctx: ReturnType<Bitmap["getContext"]>, value: string, x: number
     trimmed = trimmed.slice(0, -1);
   }
   ctx.fillText(`${trimmed}...`, x, y);
+}
+
+function wrapText(ctx: ReturnType<Bitmap["getContext"]>, value: string, maxWidth: number, maxLines: number) {
+  const words = String(value || "").split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+
+  for (const word of words) {
+    const nextLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(nextLine).width <= maxWidth) {
+      line = nextLine;
+      continue;
+    }
+
+    if (line) lines.push(line);
+    line = word;
+
+    if (lines.length === maxLines - 1) {
+      break;
+    }
+  }
+
+  if (line && lines.length < maxLines) {
+    lines.push(line);
+  }
+
+  if (!lines.length) {
+    lines.push("");
+  }
+
+  const consumedText = lines.join(" ");
+  if (consumedText.length < String(value || "").length) {
+    lines[lines.length - 1] = ellipsize(ctx, lines[lines.length - 1], maxWidth);
+  }
+
+  return lines;
+}
+
+function ellipsize(ctx: ReturnType<Bitmap["getContext"]>, value: string, maxWidth: number) {
+  let trimmed = value;
+  while (trimmed.length > 4 && ctx.measureText(`${trimmed}...`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return `${trimmed}...`;
 }
 
 function encodePng(image: Bitmap) {
