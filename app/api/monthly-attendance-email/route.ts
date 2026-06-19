@@ -74,8 +74,19 @@ export async function GET(request: Request) {
       skipped
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Monthly email failed." }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const maybeMessage = "message" in error ? String(error.message || "") : "";
+    const maybeDetails = "details" in error ? String(error.details || "") : "";
+    const maybeHint = "hint" in error ? String(error.hint || "") : "";
+    return [maybeMessage, maybeDetails, maybeHint].filter(Boolean).join(" ") || JSON.stringify(error);
+  }
+  return "Monthly email failed.";
 }
 
 function isFirstLocalDayOfMonth() {
