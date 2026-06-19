@@ -70,15 +70,15 @@ function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: Overlay
   ctx.strokeRect(panelX, panelY, panelW, panelH);
 
   ctx.fillStyle = input.attendanceType === "TIME OUT" ? "#F87171" : "#FFBF60";
-  ctx.font = "700 23pt Fredoka";
+  ctx.font = "30px Fredoka";
   ctx.fillText(input.attendanceType, panelX + 28, panelY + 48);
 
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "700 25pt Fredoka";
+  ctx.font = "32px Fredoka";
   fitText(ctx, input.employeeName, panelX + 28, panelY + 88, 500);
 
   ctx.fillStyle = "#DDE9D4";
-  ctx.font = "600 15pt Fredoka";
+  ctx.font = "20px Fredoka";
   fitText(ctx, `${input.role || "Staff"}${input.department ? ` | ${input.department}` : ""}`, panelX + 28, panelY + 120, 500);
 
   const rows = [
@@ -94,10 +94,10 @@ function drawEvidencePanel(ctx: ReturnType<Bitmap["getContext"]>, input: Overlay
   let y = panelY + 162;
   for (const [label, value] of rows) {
     ctx.fillStyle = "#FFBF60";
-    ctx.font = "700 12pt Fredoka";
+    ctx.font = "15px Fredoka";
     ctx.fillText(label.toUpperCase(), panelX + 30, y);
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "600 14pt Fredoka";
+    ctx.font = "18px Fredoka";
     fitText(ctx, value, panelX + 172, y, panelW - 205);
     y += 31;
   }
